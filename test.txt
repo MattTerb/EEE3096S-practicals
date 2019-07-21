@@ -1,1 +1,1 @@
-Words
+This is a sentence with words.
