@@ -16,11 +16,11 @@ import time
 # Logic that you write
 def main():
 
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(17, GPIO.OUT)
-    GPIO.output(17, True)
-    time.sleep(5)
-    GPIO.output(17, False)
+    GPIO.setmode(GPIO.BCM)		# Set numbering system to BCM
+    GPIO.setup(17, GPIO.OUT)		# Set LED on pin 17 to output
+    GPIO.output(17, True)		# Turn LED on
+    time.sleep(5)			# Wait for 5 seconds
+    GPIO.output(17, False)		# Turn LED off
     time.sleep(5)
 
 
