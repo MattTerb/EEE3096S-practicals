@@ -14,14 +14,19 @@ import RPi.GPIO as GPIO
 import time
 
 # Logic that you write
-def main():
+
+def setup():
 
     GPIO.setmode(GPIO.BCM)		# Set numbering system to BCM
     GPIO.setup(17, GPIO.OUT)		# Set LED on pin 17 to output
+
+
+def main():
+
     GPIO.output(17, True)		# Turn LED on
-    time.sleep(5)			# Wait for 5 seconds
+    time.sleep(2)			# Wait for 5 seconds
     GPIO.output(17, False)		# Turn LED off
-    time.sleep(5)
+    time.sleep(2)
 
 
 
@@ -30,6 +35,8 @@ def main():
 if __name__ == "__main__":
     # Make sure the GPIO is stopped correctly
     try:
+
+        setup()
         while True:
             main()
     except KeyboardInterrupt:
