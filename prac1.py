@@ -12,14 +12,14 @@ Date: 22/07/2019
 # import Relevant Librares
 import RPi.GPIO as GPIO
 import time
-import itertools
+import itertools		# Import itertools to use itertools.product to create binary array
 
 # Logic that you write
 
 counter = 0		# Variable for index to binary array
 binary = list(itertools.product([0,1], repeat=3))		# Array of binary from 000 to 111
-LED_pin = [17,27,22]
-btn_pin = [23,24]
+LED_pin = [17,27,22]			# Array for 3 LED pin numbers
+btn_pin = [23,24]			# Array for 2 button pin numbers
 
 def setup():
 
