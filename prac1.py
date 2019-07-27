@@ -12,37 +12,81 @@ Date: 22/07/2019
 # import Relevant Librares
 import RPi.GPIO as GPIO
 import time
+import itertools
 
 # Logic that you write
 
-LED_status = 0		# Create variable for LED status and set it to off
+counter = 0		# Variable for index to binary array
+binary = list(itertools.product([0,1], repeat=3))		# Array of binary from 000 to 111
+LED_pin = [17,27,22]
+btn_pin = [23,24]
+
 def setup():
 
     GPIO.setmode(GPIO.BCM)		# Set numbering system to BCM
-    GPIO.setup(17, GPIO.OUT)		# Set LED on pin 17 to output
-    GPIO.setup(23, GPIO.IN)		# Set button on pin 23 to input
-    GPIO.output(17, LED_status)		# Set LED to off
 
-def switchLED(self):
-    global LED_status
-    LED_status = not LED_status		# Turn LED on if off or off if on
-    GPIO.output(17, LED_status)		# Turn LED on
+    GPIO.setup(LED_pin, GPIO.OUT)		# Set LED on pin 17,27,22 to output
+    GPIO.setup(btn_pin, GPIO.IN)		# Set button on pin 23,24 to input
+
+    GPIO.output(LED_pin, 0)		# Set LEDs to off
+
+    GPIO.add_event_detect(23, GPIO.RISING, bouncetime=200)		# Detect button press on pin 23
+    GPIO.add_event_detect(24, GPIO.RISING, bouncetime=200)		# Detect button press on pin 24
+
+def buttonPress():
+
+    global counter
+
+    if (GPIO.input(23) == 1 and counter != 7):		# Check for left button press and count not equal to 7
+        counter += 1					# Increase count by 1
+        time.sleep(.2)					# Create .2 sec delay
+
+    if (GPIO.input(23) == 1 and counter == 7):		# Check for left button press and count equal to 7
+        counter = 0					# Set count back to 0 for wrap around
+        time.sleep(.2)
+
+    if (GPIO.input(24) == 1 and counter != 0 ):		# Check for right button press and count not equal to 0
+        counter -= 1					# Decrease count by 1
+        time.sleep(.2)
+
+    if (GPIO.input(24) == 1 and counter == 0):		# Check for right button press and count equal to 0
+        counter = 7					# Set count back to 7 for wrap around
+        time.sleep(.2)
+
+    return
+
+
+def switchLED(index,state):
+
+    GPIO.output(LED_pin[index], state)		# Turn LED on if binary value equals 1
+
+
+    return
+
+def binaryCounter(count):
+
+    for index, value in enumerate(binary[count]):	# Loop through binary array
+
+        switchLED(index,value)				# Pass LED number and state of LED to switchLED
+
+    return
+
 
 def main():
 
-    GPIO.add_event_detect(23, GPIO.RISING, callback=switchLED, bouncetime=200)		# Wait for button press
+    buttonPress()		# Call buttonPress
+    binaryCounter(counter)	# Call binaryCounter with global counter variable
 
-    while True:
-        time.sleep(1)
 
 # Only run the functions if
 if __name__ == "__main__":
     # Make sure the GPIO is stopped correctly
     try:
 
-        setup()
+        setup()			# Setup LEDs and buttons
+
         while True:
-            main()
+            main()		# Run main function until program is cancelled
     except KeyboardInterrupt:
         print("Exiting gracefully")
         # Turn off your GPIOs here
