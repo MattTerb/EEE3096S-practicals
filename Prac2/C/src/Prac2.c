@@ -1,13 +1,13 @@
 #include "Prac2.h"
 
-extern float data [SAMPLE_COUNT];
-extern float carrier[SAMPLE_COUNT];
+extern double data [SAMPLE_COUNT];
+extern double carrier[SAMPLE_COUNT];
 
-float result [SAMPLE_COUNT];
+double result [SAMPLE_COUNT];
 
 int main(int argc, char**argv){
     printf("Running Unthreaded Test\n");
-    printf("Precision sizeof %d\n", sizeof(float));
+    printf("Precision sizeof %d\n", sizeof(double));
 
     tic(); // start the timer
     for (int i = 0;i<SAMPLE_COUNT;i++ ){
