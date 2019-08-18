@@ -41,6 +41,15 @@ void initGPIO(void){
 	
 	//Set Up the Seconds LED for PWM
 	//Write your logic here
+	pinMode(SEC, PWM_OUPUT);
+	
+	printf("LEDS done\n");
+	
+	//Set up the Buttons
+	for(int j; j < sizeof(BTNS)/sizeof(BTNS[0]); j++){
+		pinMode(BTNS[j], INPUT);
+		pullUpDnControl(BTNS[j], PUD_UP);
+	}
 	
 	printf("LEDS done\n");
 	
@@ -53,9 +62,13 @@ void initGPIO(void){
 	//Attach interrupts to Buttons
 	//Write your logic here
 	
+	int wiringPilSR(5, INT_EDGE_FALLING, hourInc)
+   	int wiringPiLSR(30, INT_EDGE_FALLING, minInc)
+	
 	printf("BTNS done\n");
 	printf("Setup done\n");
-}
+	
+	}
 
 
 /*
@@ -116,6 +129,10 @@ int hFormat(int hours){
  */
 void lightHours(int units){
 	// Write your logic to light up the hour LEDs here	
+	int h = 0;
+	h = hexCompensation(units)
+	h = hformat(h);
+
 }
 
 /*
