@@ -75,7 +75,7 @@ int main(void){
 	for (;;){
 		//Fetch the time from the RTC
 		//Write your logic here
-		
+		fetchTime();
 		//Function calls to toggle LEDs
 		//Write your logic here
 		
@@ -86,6 +86,15 @@ int main(void){
 		delay(1000); //milliseconds
 	}
 	return 0;
+}
+
+void fetchTime(void){
+
+	hours = wiringPiI2CReadReg8(RTC, HOUR);
+	mins = wiringPiI2CReadReg8(RTC, MIN);
+	secs = wiringPiI2CReadReg8(RTC, SEC);
+
+
 }
 
 /*
@@ -194,8 +203,16 @@ void hourInc(void){
 	if (interruptTime - lastInterruptTime>200){
 		printf("Interrupt 1 triggered, %x\n", hours);
 		//Fetch RTC Time
+		fetchTime();
 		//Increase hours by 1, ensuring not to overflow
+		if (hours < 23){
+			hours += 1;
+		}
+		else {
+			hours = 0;
+		} 
 		//Write hours back to the RTC
+		wiringPiI2CWriteReg8(RTC, HOUR, hours);
 	}
 	lastInterruptTime = interruptTime;
 }
@@ -212,8 +229,16 @@ void minInc(void){
 	if (interruptTime - lastInterruptTime>200){
 		printf("Interrupt 2 triggered, %x\n", mins);
 		//Fetch RTC Time
+		fetchTime();
 		//Increase minutes by 1, ensuring not to overflow
-		//Write minutes back to the RTC
+		if (mins < 60){
+                        mins += 1;
+                }
+                else {
+                        mins = 0;
+                } 
+                //Write minutes back to the RTC
+                wiringPiI2CWriteReg8(RTC, MIN, mins);
 	}
 	lastInterruptTime = interruptTime;
 }
