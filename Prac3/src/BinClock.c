@@ -13,6 +13,7 @@
 #include <stdio.h> //For printf functions
 #include <stdlib.h> // For system functions
 #include <stdbool.h>
+#include <signal.h> // For keyboard interrupt
 
 #include "BinClock.h"
 #include "CurrentTime.h"
@@ -73,7 +74,8 @@ void initGPIO(void){
  */
 int main(void){
 	initGPIO();
-  
+
+	signal(SIGINT, cleanUp);
 	//Set random time (3:04PM)
 	//You can comment this file out later
 	wiringPiI2CWriteReg8(RTC, HOUR, 0x2+TIMEZONE);
@@ -85,14 +87,12 @@ int main(void){
 	// Repeat this until we shut down
 	for (;;){
 		//Fetch the time from the RTC
-		//Write your logic here
 		fetchTime();
-        lightHours(hours);
-        lightMins(mins);
-        secPWM(secs);
-        //Function calls to toggle LEDs
-		//Write your logic here
-		
+
+        	//Function calls to toggle LEDS
+		lightHours(hours);
+		lightMins(mins);
+		secPWM(secs);
 		// Print out the time we have stored on our RTC
 		printf("The current time is: %x:%x:%x\n", hours, mins, secs);
 
@@ -102,12 +102,26 @@ int main(void){
 	return 0;
 }
 
+void cleanUp(int signal) {
+
+	printf("Program Ended");
+	for(int i=0; i < sizeof(LEDS)/sizeof(LEDS[0]); i++){
+            digitalWrite(LEDS[i], 0);	//Turns LEDs off
+        }
+	 for(int i=0; i < sizeof(LEDS)/sizeof(LEDS[0]); i++){
+            pinMode(LEDS[i], INPUT);	//Sets LEDs to input
+        } 
+	pinMode(SECS, INPUT);		//Sets seconds LED to input
+	exit(1);	//Exits program
+
+}
+
 
 void fetchTime(void){
 
-	hours = wiringPiI2CReadReg8(RTC, HOUR);
-	mins = wiringPiI2CReadReg8(RTC, MIN);
-	secs = wiringPiI2CReadReg8(RTC, SEC);
+	hours = wiringPiI2CReadReg8(RTC, HOUR);	//Reads HOUR value from RTC
+	mins = wiringPiI2CReadReg8(RTC, MIN);	//Reads MIN value from RTC
+	secs = wiringPiI2CReadReg8(RTC, SEC);	//Reads SEC value from RTC
 
     
 }
@@ -126,9 +140,6 @@ int hFormat(int hours){
 	return (int)hours;
 }
 
-/*
- * Turns on corresponding LED's for hours
- */
 
 void decToBinary(int n){
     
@@ -153,6 +164,11 @@ void decToBinary(int n){
 
     printf("\n");
 }
+
+/*
+ *	Turns on corresponding LED's for hours
+ */
+
 void lightHours(int units){
 	// Write your logic to light up the hour LEDs here	
     numOfPlaces = 4;
@@ -173,10 +189,10 @@ void lightHours(int units){
 }
 
 
-
 /*
  * Turn on the Minute LEDs
  */
+
 void lightMins(int units){
     numOfPlaces = 6;
 	int m = 0;
@@ -277,15 +293,12 @@ void hourInc(void){
 		fetchTime();
         
 		//Increase hours by 1, ensuring not to overflow
-		if (hours < 0x17){
+		if (hours < 0x17){	//Ensures hours doesn't go above 23
 			hours = hours + 0x01;
-            printf("Hours IF ");
-            printf("Hours Value %x\n", hours);
-		}
+      		}
 		else {
 			hours = 0x00;
-            printf(" Hours Else");
-		} 
+       		} 
 
 		//Write hours back to the RTC
        
@@ -308,15 +321,11 @@ void minInc(void){
 		//Fetch RTC Time
 		fetchTime();
 		//Increase minutes by 1, ensuring not to overflow
-		if (mins < 0x3C){
+		if (mins < 0x3C){	//Ensures minutes doesn't go above 60
                         mins += 0x01;
-                printf("Mins IF");
-                printf("Min Value %x\n", mins);
-
-}
+                }
                 else {
                         mins = 0x00;
-                printf("Mins Else");
                 } 
                 //Write minutes back to the RTC
                 wiringPiI2CWriteReg8(RTC, MIN, mins);
