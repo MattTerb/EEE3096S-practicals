@@ -10,12 +10,13 @@ void lightHours(int units);
 void lightMins(int units);
 int hexCompensation(int units);
 int decCompensation(int units);
+void fetchTime(void);
 void initGPIO(void);
 void secPWM(int units);
 void hourInc(void);
 void minInc(void);
 void toggleTime(void);
-void fetchTime(void);
+void decToBinary(int n);
 
 // define constants
 const char RTCAddr = 0x6f;
