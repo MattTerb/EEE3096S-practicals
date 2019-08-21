@@ -17,6 +17,7 @@ void hourInc(void);
 void minInc(void);
 void toggleTime(void);
 void decToBinary(int n);
+void cleanUp(int signal);
 
 // define constants
 const char RTCAddr = 0x6f;
