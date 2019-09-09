@@ -35,7 +35,7 @@
 
 //SPI Settings
 #define SPI_CHAN 0	//CEO
-#define SPI_SPEED 500000	//1000*16*1*8/5
+#define SPI_SPEED 500000	// Hz
 
 //Filename
 #define FILENAME "src/sound_16k_8bit.raw"
