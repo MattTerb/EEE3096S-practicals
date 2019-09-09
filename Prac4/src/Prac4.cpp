@@ -135,7 +135,6 @@ void *playThread(void *threadargs){
 	printf("Post Loc %d ", buffer_location);
 
       if(buffer_location == 3670072){
-//	printf("------Jump------");
       buffer_location = 0;
 
 }
