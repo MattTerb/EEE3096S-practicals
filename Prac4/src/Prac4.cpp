@@ -100,12 +100,6 @@ int setup_gpio(void){
     wiringPiISR(PLAY_BUTTON, INT_EDGE_FALLING, play_pause_isr);
     wiringPiISR(STOP_BUTTON, INT_EDGE_FALLING, stop_isr);
     //setting up the SPI interface
-//    pinMode(10, OUTPUT);
-  //  digitalWrite(10,HIGH);
-
-//    pinMode(12, OUTPUT);
-//    digitalWrite(12,0);
-
 
     wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
 
@@ -134,18 +128,10 @@ void *playThread(void *threadargs){
         }
 
 
-//printf("Pre Loc %d ", buffer_location);
-        //Write the buffer out to SPI
-//	printf(" %c ", buffer[bufferReading][buffer_location]);
-//	digitalWrite(10,0);	// CS LOW
-//	if(bufferReading){
-	wiringPiSPIDataRW(SPI_CHAN, buffer[bufferReading][buffer_location], 2);
-//}
-//	if(!bufferReading){
-//	wiringPiSPIDataRW(SPI_CHAN, buffer[1][buffer_location], 2);
 
-//}
-//	digitalWrite(10,1);	// CS HIGH
+        //Write the buffer to the DAC
+	wiringPiSPIDataRW(SPI_CHAN, buffer[bufferReading][buffer_location], 2);
+
 	printf("Post Loc %d ", buffer_location);
 
       if(buffer_location == 3670072){
@@ -154,14 +140,14 @@ void *playThread(void *threadargs){
 
 }
 
-//printf("Post Loc %d ", buffer_location);
+
         //Do some maths to check if you need to toggle buffers
         buffer_location++;
-// printf("Post Loc %d ", buffer_location);        
+
 	if(buffer_location >= BUFFER_SIZE) {
             buffer_location = 0;
             bufferReading = !bufferReading; // switches column one it finishes one column
-//            printf("   %d   ", buffer_location);
+
 }
 
     }
