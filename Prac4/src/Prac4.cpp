@@ -132,7 +132,7 @@ void *playThread(void *threadargs){
         //Write the buffer to the DAC
 	wiringPiSPIDataRW(SPI_CHAN, buffer[bufferReading][buffer_location], 2);
 
-	printf("Post Loc %d ", buffer_location);
+//	printf("Post Loc %d ", buffer_location);
 
       if(buffer_location == 3670072){
       buffer_location = 0;
