@@ -14,6 +14,7 @@
 #include <stdlib.h> // For system functions
 #include <stdbool.h>
 #include <signal.h> // For keyboard interrupt
+#include <math.h>
 
 #include "BinClock.h"
 #include "CurrentTime.h"
@@ -44,7 +45,7 @@ void initGPIO(void){
 	
 	//Set Up the Seconds LED for PWM
 	//Write your logic here
-	pinMode(SEC, PWM_OUTPUT);
+	pinMode(SECS, PWM_OUTPUT);
 	
 	printf("LEDS done\n");
 
@@ -59,8 +60,8 @@ void initGPIO(void){
 	//Attach interrupts to Buttons
 	//Write your logic here
 	
-	wiringPiISR(BTNS[0], INT_EDGE_RISING, hourInc);
-   	wiringPiISR(BTNS[1], INT_EDGE_RISING, minInc);
+	wiringPiISR(BTNS[0], INT_EDGE_FALLING, hourInc);
+   	wiringPiISR(BTNS[1], INT_EDGE_FALLING, minInc);
 	
 	printf("BTNS done\n");
 	printf("Setup done\n");
@@ -78,9 +79,11 @@ int main(void){
 	signal(SIGINT, cleanUp);
 	//Set random time (3:04PM)
 	//You can comment this file out later
-	wiringPiI2CWriteReg8(RTC, HOUR, 0x2+TIMEZONE);
-	wiringPiI2CWriteReg8(RTC, MIN, 0x4);
-	wiringPiI2CWriteReg8(RTC, SEC, 0x00);
+	wiringPiI2CWriteReg8(RTC, HOUR, 0x12+TIMEZONE);
+	wiringPiI2CWriteReg8(RTC, MIN, 0x55);
+	wiringPiI2CWriteReg8(RTC, SEC, 0x00+0b10000000);
+
+//	toggleTime();
 
  	printf("Start");
 
@@ -94,7 +97,7 @@ int main(void){
 		lightMins(mins);
 		secPWM(secs);
 		// Print out the time we have stored on our RTC
-		printf("The current time is: %x:%x:%x\n", hours, mins, secs);
+		printf("The current time is: %d:%d:%d\n", hours, mins, secs);
 
 		//using a delay to make our program "less CPU hungry"
 		delay(1000); //milliseconds
@@ -111,17 +114,17 @@ void cleanUp(int signal) {
 	 for(int i=0; i < sizeof(LEDS)/sizeof(LEDS[0]); i++){
             pinMode(LEDS[i], INPUT);	//Sets LEDs to input
         } 
-	pinMode(SECS, INPUT);		//Sets seconds LED to input
-	exit(1);	//Exits program
+	pinMode(SECS, 0);		//Sets seconds LED to input
+	exit(0);	//Exits program
 
 }
 
 
 void fetchTime(void){
 
-	hours = wiringPiI2CReadReg8(RTC, HOUR);	//Reads HOUR value from RTC
-	mins = wiringPiI2CReadReg8(RTC, MIN);	//Reads MIN value from RTC
-	secs = wiringPiI2CReadReg8(RTC, SEC);	//Reads SEC value from RTC
+	hours = hexCompensation(wiringPiI2CReadReg8(RTC, HOUR));	//Reads HOUR value from RTC
+	mins = hexCompensation(wiringPiI2CReadReg8(RTC, MIN));	//Reads MIN value from RTC
+	secs = hexCompensation(wiringPiI2CReadReg8(RTC, SEC)-0b10000000);	//Reads SEC value from RTC
 
     
 }
@@ -173,8 +176,7 @@ void lightHours(int units){
 	// Write your logic to light up the hour LEDs here	
     numOfPlaces = 4;
 	int h = 0;
-	h = hexCompensation(units);
-	h = hFormat(h);                 //turn hours into right format
+	h = hFormat(units);                 //turn hours into right format
     decToBinary(h);
     for (int i = 0; i < numOfPlaces; i++){
         if (display[i] == 1){
@@ -196,7 +198,7 @@ void lightHours(int units){
 void lightMins(int units){
     numOfPlaces = 6;
 	int m = 0;
-	m = hexCompensation(units); 
+	m = units; 
     decToBinary(m);
     for (int i = 0; i < numOfPlaces; i++){
         if (display[i] == 1){
@@ -215,10 +217,12 @@ void lightMins(int units){
  * The LED should be "off" at 0 seconds, and fully bright at 59 seconds
  */
 void secPWM(int units){
-    printf("Sec works");
-    int sec = units;
-	int brightness = (sec/60) * 1024;
-    pwmWrite(SEC, brightness);
+
+    double brightness = 1024*units/59;
+    int pwmBrightness = round(brightness);
+    pwmWrite(SECS, pwmBrightness);
+    printf(" Brightness %d ", pwmBrightness);
+
 }
 
 /*
@@ -293,16 +297,16 @@ void hourInc(void){
 		fetchTime();
         
 		//Increase hours by 1, ensuring not to overflow
-		if (hours < 0x17){	//Ensures hours doesn't go above 23
-			hours = hours + 0x01;
+		if (hours < 24){	//Ensures hours doesn't go above 23
+			hours = hours + 1;
       		}
 		else {
-			hours = 0x00;
+			hours = 0;
        		} 
 
 		//Write hours back to the RTC
        
-		wiringPiI2CWriteReg8(RTC, HOUR, hours);
+		wiringPiI2CWriteReg8(RTC, HOUR, decCompensation(hours));
   	}
 	lastInterruptTime = interruptTime;
 }
@@ -320,15 +324,15 @@ void minInc(void){
 		printf("Interrupt 2 triggered, %x\n", mins);
 		//Fetch RTC Time
 		fetchTime();
+
 		//Increase minutes by 1, ensuring not to overflow
-		if (mins < 0x3C){	//Ensures minutes doesn't go above 60
-                        mins += 0x01;
-                }
-                else {
-                        mins = 0x00;
+		mins = mins + 1;
+
+		if (mins > 59){	//Ensures minutes doesn't go above 60
+                        mins = 0;
                 } 
                 //Write minutes back to the RTC
-                wiringPiI2CWriteReg8(RTC, MIN, mins);
+                wiringPiI2CWriteReg8(RTC, MIN, decCompensation(mins));
 	}
 	lastInterruptTime = interruptTime;
 }
