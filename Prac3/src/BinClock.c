@@ -182,6 +182,7 @@ void lightHours(int units){
         if (display[i] == 1){
             printf("H1");          //display on LED's
             digitalWrite(LEDS[i], 1);
+
         } else {
             printf("H0");
             digitalWrite(LEDS[i], 0);
@@ -221,7 +222,7 @@ void secPWM(int units){
     double brightness = 1024*units/59;
     int pwmBrightness = round(brightness);
     pwmWrite(SECS, pwmBrightness);
-    printf(" Brightness %d ", pwmBrightness);
+//    printf(" Brightness %d ", pwmBrightness);
 
 }
 
