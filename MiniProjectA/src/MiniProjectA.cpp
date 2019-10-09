@@ -18,9 +18,9 @@
 
 using namespace std;
 
-bool playing = true; // should be set false when paused
+bool monitoring = true; // should be set false when stopped
 bool stopped = false; // If set to true, program should close
-unsigned char buffer[2][BUFFER_SIZE][2];
+unsigned char buffer[3] = {1};
 int buffer_location = 0;
 bool bufferReading = 0; //using this to switch between column 0 and 1 - the first column
 bool threadReady = false; //using this to finish writing the first column at the start of the song, before the column is played
@@ -30,56 +30,105 @@ long lastInterruptTime = 0;	// Used for button debounce
 
 // Configure your interrupts here.
 // Don't forget to use debouncing.
-void play_pause_isr(void){
+void stop_start_isr(void){
 
     //Debounce
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Play/Pause interrupt triggered");
+        printf("Stop/Start interrupt triggered");
 
-	play_audio();
+	monitor();
 
 
 }
     lastInterruptTime = interruptTime;
 }
 
-void stop_isr(void){
+void dismiss_alarm_isr(void){
 
     //Debounce
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Stop interrupt triggered");
+        printf("Dismiss Alarm interrupt triggered");
 
-	stop_audio();
+	dismiss_alarm();
 
     }
     lastInterruptTime = interruptTime;
 }
 
-void play_audio(void){
+void reset_isr(void){
+
+    //Debounce
+    long interruptTime = millis();
+
+    if (interruptTime - lastInterruptTime>200){
+        printf("Reset interrupt triggered");
+
+        reset();
+
+    }
+    lastInterruptTime = interruptTime;
+}
+
+void frequency_isr(void){
+
+    //Debounce
+    long interruptTime = millis();
+
+    if (interruptTime - lastInterruptTime>200){
+        printf("Change frequency interrupt triggered");
+
+        change_frequency();
+
+    }
+    lastInterruptTime = interruptTime;
+}
 
 
-if (playing) {
-        playing = false;
+
+void monitor(void){
+
+
+if (monitoring) {
+        monitoring = false;
     }
     else{
-        playing = true;
+        monitoring = true;
     }
 }
 
 
-void stop_audio(void){
+void reset(void){
 
 
-    stopped = true;
 
-    exit(1);
 
+   
 
 }
+
+void change_frequency(void){
+
+
+
+
+    
+
+}
+
+
+void dismiss_alarm(void){
+
+
+
+
+    
+
+}
+
 
 /*
  * Setup Function. Called once 
@@ -88,68 +137,60 @@ int setup_gpio(void){
     //Set up wiring Pi
     wiringPiSetup();
     //setting up the buttons
-    pinMode(PLAY_BUTTON, INPUT);
-    pullUpDnControl(PLAY_BUTTON, PUD_UP);
+    pinMode(CHANGE_FREQ_BTN, INPUT);
+    pullUpDnControl(CHANGE_FREQ_BTN, PUD_UP);
 
-    pinMode(STOP_BUTTON, INPUT);
-    pullUpDnControl(STOP_BUTTON, PUD_UP);
+    pinMode(RESET_TIME_BTN, INPUT);
+    pullUpDnControl(RESET_TIME_BTN, PUD_UP);
+
+    pinMode(STOP_START_BTN, INPUT);
+    pullUpDnControl(STOP_START_BTN, PUD_UP);
+
+    pinMode(DISMISS_ALARM_BTN, INPUT);
+    pullUpDnControl(DISMISS_ALARM_BTN, PUD_UP);
 
     //Attach interrupts to button
-    wiringPiISR(PLAY_BUTTON, INT_EDGE_FALLING, play_pause_isr);
-    wiringPiISR(STOP_BUTTON, INT_EDGE_FALLING, stop_isr);
+    wiringPiISR(CHANGE_FREQ_BTN, INT_EDGE_FALLING, frequency_isr);
+    wiringPiISR(RESET_TIME_BTN, INT_EDGE_FALLING, reset_isr);
+    wiringPiISR(STOP_START_BTN, INT_EDGE_FALLING, stop_start_isr);
+    wiringPiISR(DISMISS_ALARM_BTN, INT_EDGE_FALLING, dismiss_alarm_isr);
+   
     //setting up the SPI interface
-
     wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
 
  return 0;
 }
 
 /* 
- * Thread that handles writing to SPI
+ * Thread that handles reading from SPI
  * 
- * You must pause writing to SPI if not playing is true (the player is paused)
- * When calling the function to write to SPI, take note of the last argument.
- * You don't need to use the returned value from the wiring pi SPI function
- * You need to use the buffer_location variable to check when you need to switch buffers
  */
-void *playThread(void *threadargs){
+void *monitorThread(void *threadargs){
     // If the thread isn't ready, don't do anything
     while(!threadReady)
         continue;
 
-    //You need to only be playing if the stopped flag is false
+    //You need to only be monitoring if the stopped flag is false
     while(!stopped){
         //Code to suspend playing if paused
-	while (!playing){
+	while (!monitoring){
 //	    printf("Paused");
 
         }
 
 
+	buffer[1] = (8+0) << 4;
+        //Write the buffer to the ADC
+	wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
 
-        //Write the buffer to the DAC
-	wiringPiSPIDataRW(SPI_CHAN, buffer[bufferReading][buffer_location], 2);
+	printf("CH0 Result  %d ", ((buffer[1] & 3) << 8 )+buffer[2]);
 
-//	printf("Post Loc %d ", buffer_location);
-
-      if(buffer_location == 3670072){
-      buffer_location = 0;
-
-}
-
-
-        //Do some maths to check if you need to toggle buffers
-        buffer_location++;
-
-	if(buffer_location >= BUFFER_SIZE) {
-            buffer_location = 0;
-            bufferReading = !bufferReading; // switches column one it finishes one column
 
 }
 
     }
     
-    pthread_exit(NULL);
+    mthread_exit(NULL);
 }
 
 int main(){
@@ -159,85 +200,24 @@ int main(){
     }
     
     /* Initialize thread with parameters
-     * Set the play thread to have a 99 priority
-     * Read https://docs.oracle.com/cd/E19455-01/806-5257/attrib-16/index.html
      */ 
     
     //Write your logic here
-    pthread_attr_t tattr;
-    pthread_t thread_id;
+    mthread_attr_t tattr;
+    mthread_t thread_id;
     int newprio = 99;
     sched_param param;
     
-    pthread_attr_init (&tattr);
-    pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
+    mthread_attr_init (&tattr);
+    mthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
     param.sched_priority = newprio; /* set the priority; others are unchanged */
-    pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
-    pthread_create(&thread_id, &tattr, playThread, (void *)1); /* with new priority specified */
+    mthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
+    mthread_create(&thread_id, &tattr, monitorThread, (void *)1); /* with new priority specified */
     
-    /*
-     * Read from the file, character by character
-     * You need to perform two operations for each character read from the file
-     * You will require bit shifting
-     * 
-     * buffer[bufferWriting][counter][0] needs to be set with the control bits
-     * as well as the first few bits of audio
-     * 
-     * buffer[bufferWriting][counter][1] needs to be set with the last audio bits
-     * 
-     * Don't forget to check if you have pause set or not when writing to the buffer
-     * 
-     */
-     
-    // Open the file
-    char ch;
-    FILE *filePointer;
-    printf("%s\n", FILENAME);
-    filePointer = fopen(FILENAME, "r"); // read mode
-
-    if (filePointer == NULL) {
-        perror("Error while opening the file.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    int counter = 0;
-    int bufferWriting = 0;
-
-    // Have a loop to read from the file
-	 while((ch = fgetc(filePointer)) != EOF){
-        while(threadReady && bufferWriting==bufferReading && counter==0){
-            //waits in here after it has written to a side, and the thread is still reading from the other side
-//		printf("Wait");
-            continue;
-        }
-        //Set config bits for first 8 bit packet and OR with upper bits
-	if (playing){
-
-	buffer[bufferWriting][counter][0] = 0b01110000 | (ch >> 4);    //shift ch 4 bits to right and ORs it with control bits.
-        //Set next 8 bit packet
-        buffer[bufferWriting][counter][1] = ch << 4;
-//	printf("Data: %s", buffer[bufferWriting][counter]);
-
-        counter++;
-        if(counter >= BUFFER_SIZE){
-            if(!threadReady){
-                threadReady = true;
-            }
-
-            counter = 0;
-            bufferWriting = (bufferWriting+1)%2;
-        }
-}
-
-    }
-     
-    // Close the file
-    fclose(filePointer);
-    printf("Complete reading"); 
 	 
     //Join and exit the playthread
-	pthread_join(thread_id, NULL); 
-    pthread_exit(NULL);
+    mthread_join(thread_id, NULL); 
+    mthread_exit(NULL);
 	
     return 0;
 }

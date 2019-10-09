@@ -29,17 +29,17 @@
 #include <iostream>
 
 //Define buttons
-#define CHANGE_INTERVAL 0	//BCM 17
-#define RESET_TIME 2	//BCM 27
-#define STOP_START 3	//BCM 22
-#define DISMISS_ALARM 21	//BCM 5
+#define CHANGE_FREQ_BTN 0	//BCM 17
+#define RESET_TIME_BTN 2	//BCM 27
+#define STOP_START_BTN 3	//BCM 22
+#define DISMISS_ALARM_BTN 21	//BCM 5
 
 //Define LED
 #define ALARM_LED 1       //BCM 18
 
 //SPI Settings
 #define SPI_CHAN 0	//CEO
-#define SPI_SPEED 409600	// Hz
+#define SPI_SPEED 10000	// Hz
 
 //Define constants
 const char RTC_ADDR = 0x6f;
