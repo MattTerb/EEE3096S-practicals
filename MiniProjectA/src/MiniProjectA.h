@@ -22,11 +22,14 @@
 #include <vector>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <wiringPiI2C.h>
 #include <wiringPiSPI.h>
 #include <unistd.h>
 #include <math.h>
 #include <pthread.h>
 #include <iostream>
+#include <signal.h> // For keyboard interrupt
 
 //Define buttons
 #define CHANGE_FREQ_BTN 0	//BCM 17
@@ -53,15 +56,26 @@ void stop_start_isr(void);
 void dismiss_alarm_isr(void);
 void reset_isr(void);
 void frequency_isr(void);
+
 void monitor(void);
 void reset(void);
 void change_frequency(void);
 void dismiss_alarm(void);
+
 int setup_gpio(void);
+
 int analogReadADC(int analogChannel);
 double humidityVoltage(double value);
 int temperatureCelsius(int value);
 double dacOUT(double light, double humidityV);
+int hFormat(int hours);
+
+int hexCompensation(int units);
+int decCompensation(int units);
+void fetchTime(void);
+void decToBinary(int n);
+
+void cleanUp(int signal);
 
 int main(void);
 

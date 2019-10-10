@@ -15,14 +15,17 @@
  */
 
 #include "MiniProjectA.h"
+#include "CurrentTime.c"
 
 
-using namespace std;
 unsigned char buffer[3];
 bool monitoring = true; // should be set false when stopped
 bool stopped = false; // If set to true, program should close
-
-
+int hours, mins, secs;
+int h = 0;
+int m = 0;
+int s = 0;
+int freq = 1;
 long lastInterruptTime = 0;	// Used for button debounce
 
 
@@ -34,7 +37,7 @@ void stop_start_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Stop/Start interrupt triggered");
+        printf("Stop/Start interrupt triggered\n");
 
 	monitor();
 
@@ -49,7 +52,7 @@ void dismiss_alarm_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Dismiss Alarm interrupt triggered");
+        printf("Dismiss Alarm interrupt triggered\n");
 
 	dismiss_alarm();
 
@@ -63,7 +66,7 @@ void reset_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Reset interrupt triggered");
+        printf("Reset interrupt triggered\n");
 
         reset();
 
@@ -77,7 +80,7 @@ void frequency_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Change frequency interrupt triggered");
+        printf("Change frequency interrupt triggered\n");
 
         change_frequency();
 
@@ -110,11 +113,21 @@ void reset(void){
 
 void change_frequency(void){
 
-
-
-
-    
-
+    if (freq == 1) {
+        freq = 2;
+    printf("Freq = %d\n", freq);
+	return;
+}
+    if (freq == 2){
+        freq = 5;
+ printf("Freq = %d\n", freq);
+return;
+}
+    if (freq == 5){
+        freq = 1; 
+ printf("Freq = %d\n", freq);
+return;
+}
 }
 
 
@@ -156,6 +169,7 @@ double dacOUT(double light, double humidityV){
 int setup_gpio(void){
     //Set up wiring Pi
     wiringPiSetup();
+
     //setting up the buttons
     pinMode(CHANGE_FREQ_BTN, INPUT);
     pullUpDnControl(CHANGE_FREQ_BTN, PUD_UP);
@@ -178,6 +192,8 @@ int setup_gpio(void){
     //setting up the SPI interface
     wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
 
+   // RTC = wiringPiI2CSetup(RTC_ADDR); //Set up the RTC
+
     return 0;
 }
 
@@ -195,6 +211,17 @@ wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
 return (((buffer[1] & 3) << 8) + buffer[2]);
 }
 
+void fetchTime(void){
+
+//	hours = hexCompensation(wiringPiI2CReadReg8(RTC, HOUR));	//Reads HOUR value from RTC
+//	mins = hexCompensation(wiringPiI2CReadReg8(RTC, MIN));	//Reads MIN value from RTC
+//	secs = hexCompensation(wiringPiI2CReadReg8(RTC, SEC)-0b10000000);	//Reads SEC value from RTC
+
+	hours = getHours();
+        mins = getMins();
+	secs = getSecs();
+
+}
 
 /* 
  * Thread that handles reading from SPI
@@ -215,11 +242,15 @@ void *monitorThread(void *threadargs){
 
         }
 
-	printf("|   RTC Time   |   Sys Timer   | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |   Alarm   |\n", humidityVoltage(analogReadADC(2)), temperatureCelsius(analogReadADC(0)), analogReadADC(1), 
+//Fetch the time from the RTC
+	fetchTime();
+
+	printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |   Alarm   |\n", hours, mins, secs,h, m, s, humidityVoltage(analogReadADC(2)), temperatureCelsius(analogReadADC(0)), analogReadADC(1), 
 dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
 	printf("----------------------------------------------------------------------------------------------\n"); 
- 
-	sleep(1);
+// printf("The current time is: %d:%d:%d\n", hours, mins, secs);
+        s = s + freq;
+	sleep(freq);
 }
 
     
