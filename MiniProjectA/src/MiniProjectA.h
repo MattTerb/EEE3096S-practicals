@@ -39,7 +39,7 @@
 
 //SPI Settings
 #define SPI_CHAN 0	//CEO
-#define SPI_SPEED 1000000	// Hz
+#define SPI_SPEED 1350000	// Hz (18*75ksps)
 
 //Define constants
 const char RTC_ADDR = 0x6f;
@@ -58,7 +58,11 @@ void reset(void);
 void change_frequency(void);
 void dismiss_alarm(void);
 int setup_gpio(void);
-int analogReadADC(int spiChannel,int channelConfig,int analogChannel);
+int analogReadADC(int analogChannel);
+int humidityVoltage(int value);
+int temperatureCelsius(int value);
+int dacOUT(int light, int humidityV);
+
 int main(void);
 
 

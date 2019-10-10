@@ -15,7 +15,7 @@
  */
 
 #include "MiniProjectA.h"
-#include <unistd.h>
+
 
 using namespace std;
 unsigned char buffer[3];
@@ -160,17 +160,16 @@ int setup_gpio(void){
 }
 
 
-int analogReadADC(int spiChannel, int channelConfig, int analogChannel){
+int analogReadADC(int analogChannel){
 
 
 //printf("Buffer0: %d, Buffer1: %d, Buffer2: %d ", buffer[0], buffer[1], buffer[2]);
 buffer[0] = 1;
-buffer[1] = 8 + analogChannel << 4;
-buffer[2] = 0b00000000;
-printf("BEFORE = Buffer0: %d, Buffer1: %d, Buffer2: %d ", buffer[0], buffer[1], buffer[2]);
+buffer[1] = (8 + analogChannel) << 4;
+buffer[2] = 0;
 
-wiringPiSPIDataRW(spiChannel, buffer, 3);
-printf("AFTER = Buffer0: %d, Buffer1: %d, Buffer2: %d, Result: %d  ", buffer[0], buffer[1], buffer[2], (((buffer[1] & 3) << 8) + buffer[2]));
+wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
+//printf("AFTER = Buffer0: %d, Buffer1: %d, Buffer2: %d, Result: %d  ", buffer[0], buffer[1], buffer[2], (((buffer[1] & 3) << 8) + buffer[2]));
 return (((buffer[1] & 3) << 8) + buffer[2]);
 }
 
@@ -181,30 +180,24 @@ return (((buffer[1] & 3) << 8) + buffer[2]);
  */
 void *monitorThread(void *threadargs){
     // If the thread isn't ready, don't do anything
-    //while(!threadReady)
-       // continue;
+//    while(!threadReady)
+  //      continue;
 
-    //You need to only be monitoring if the stopped flag is false
+	printf("----------------------------------------------------------------------------------------------\n"); 
+	printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
+ 	printf("----------------------------------------------------------------------------------------------\n");   
+
+ //You need to only be monitoring if the stopped flag is false
     while(!stopped){
        //Code to suspend playing if paused
 	while (!monitoring){
 	    printf("Paused");
 
         }
-//	printf("Value: %d", analogRead(12345+1));
 
-
-//	buffer[1] = (8+1) << 4;
-        //Write the buffer to the ADC
-//	wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
-
-//	printf("CH0 Result  %d ", ((buffer[1] & 3) << 8 )+buffer[2]);
-	for(int i=0; i<3; i++)
-        {
-            printf("MCP3008(CE%d): analogChannel %d = %d\n",0,i+1,analogReadADC(0,8,i));
+	printf("|   RTC Time   |   Sys Timer   |  %-12d|  %-8d|  %-7d|   DAC out   |   Alarm   |\n", analogReadADC(2), analogReadADC(0), analogReadADC(1));
+	printf("----------------------------------------------------------------------------------------------\n"); 
  
-      }
-printf("\n");
 	sleep(1);
 }
 
@@ -219,7 +212,8 @@ int main(){
         printf("Setup error");
 	 return 0;
     }
-    
+
+
     /* Initialize thread with parameters
      */ 
     
@@ -239,7 +233,9 @@ int main(){
     //Join and exit the playthread
     pthread_join(thread_id, NULL); 
     pthread_exit(NULL);
-	
+
+
+
     return 0;
 }
 
