@@ -15,14 +15,12 @@
  */
 
 #include "MiniProjectA.h"
+#include <unistd.h>
 
 using namespace std;
-
+unsigned char buffer[3];
 bool monitoring = true; // should be set false when stopped
 bool stopped = false; // If set to true, program should close
-unsigned char buffer[3] = {1};
-int buffer_location = 0;
-bool bufferReading = 0; //using this to switch between column 0 and 1 - the first column
 bool threadReady = false; //using this to finish writing the first column at the start of the song, before the column is played
 
 long lastInterruptTime = 0;	// Used for button debounce
@@ -158,8 +156,24 @@ int setup_gpio(void){
     //setting up the SPI interface
     wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
 
- return 0;
+    return 0;
 }
+
+
+int analogReadADC(int spiChannel, int channelConfig, int analogChannel){
+
+
+//printf("Buffer0: %d, Buffer1: %d, Buffer2: %d ", buffer[0], buffer[1], buffer[2]);
+buffer[0] = 1;
+buffer[1] = 8 + analogChannel << 4;
+buffer[2] = 0b00000000;
+printf("BEFORE = Buffer0: %d, Buffer1: %d, Buffer2: %d ", buffer[0], buffer[1], buffer[2]);
+
+wiringPiSPIDataRW(spiChannel, buffer, 3);
+printf("AFTER = Buffer0: %d, Buffer1: %d, Buffer2: %d, Result: %d  ", buffer[0], buffer[1], buffer[2], (((buffer[1] & 3) << 8) + buffer[2]));
+return (((buffer[1] & 3) << 8) + buffer[2]);
+}
+
 
 /* 
  * Thread that handles reading from SPI
@@ -167,57 +181,64 @@ int setup_gpio(void){
  */
 void *monitorThread(void *threadargs){
     // If the thread isn't ready, don't do anything
-    while(!threadReady)
-        continue;
+    //while(!threadReady)
+       // continue;
 
     //You need to only be monitoring if the stopped flag is false
     while(!stopped){
-        //Code to suspend playing if paused
+       //Code to suspend playing if paused
 	while (!monitoring){
-//	    printf("Paused");
+	    printf("Paused");
 
         }
+//	printf("Value: %d", analogRead(12345+1));
 
 
-	buffer[1] = (8+0) << 4;
+//	buffer[1] = (8+1) << 4;
         //Write the buffer to the ADC
-	wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
+//	wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
 
-	printf("CH0 Result  %d ", ((buffer[1] & 3) << 8 )+buffer[2]);
-
-
+//	printf("CH0 Result  %d ", ((buffer[1] & 3) << 8 )+buffer[2]);
+	for(int i=0; i<3; i++)
+        {
+            printf("MCP3008(CE%d): analogChannel %d = %d\n",0,i+1,analogReadADC(0,8,i));
+ 
+      }
+printf("\n");
+	sleep(1);
 }
 
-    }
     
-    mthread_exit(NULL);
+    
+    pthread_exit(NULL);
 }
 
 int main(){
     // Call the setup GPIO function
 	if(setup_gpio()==-1){
-        return 0;
+        printf("Setup error");
+	 return 0;
     }
     
     /* Initialize thread with parameters
      */ 
     
     //Write your logic here
-    mthread_attr_t tattr;
-    mthread_t thread_id;
+    pthread_attr_t tattr;
+    pthread_t thread_id;
     int newprio = 99;
     sched_param param;
     
-    mthread_attr_init (&tattr);
-    mthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
+    pthread_attr_init (&tattr);
+    pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
     param.sched_priority = newprio; /* set the priority; others are unchanged */
-    mthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
-    mthread_create(&thread_id, &tattr, monitorThread, (void *)1); /* with new priority specified */
+    pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
+    pthread_create(&thread_id, &tattr, monitorThread, (void *)1); /* with new priority specified */
     
 	 
     //Join and exit the playthread
-    mthread_join(thread_id, NULL); 
-    mthread_exit(NULL);
+    pthread_join(thread_id, NULL); 
+    pthread_exit(NULL);
 	
     return 0;
 }

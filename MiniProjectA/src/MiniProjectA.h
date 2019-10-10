@@ -39,7 +39,7 @@
 
 //SPI Settings
 #define SPI_CHAN 0	//CEO
-#define SPI_SPEED 10000	// Hz
+#define SPI_SPEED 1000000	// Hz
 
 //Define constants
 const char RTC_ADDR = 0x6f;
@@ -49,9 +49,16 @@ const char HOUR = 0x02;
 const char TIMEZONE = 2; // +02H00 (RSA)
 
 //Function definitions
-void play_audio(void);
-void stop_audio(void);
+void stop_start_isr(void);
+void dismiss_alarm_isr(void);
+void reset_isr(void);
+void frequency_isr(void);
+void monitor(void);
+void reset(void);
+void change_frequency(void);
+void dismiss_alarm(void);
 int setup_gpio(void);
+int analogReadADC(int spiChannel,int channelConfig,int analogChannel);
 int main(void);
 
 
