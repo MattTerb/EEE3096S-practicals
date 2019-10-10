@@ -21,7 +21,7 @@ using namespace std;
 unsigned char buffer[3];
 bool monitoring = true; // should be set false when stopped
 bool stopped = false; // If set to true, program should close
-bool threadReady = false; //using this to finish writing the first column at the start of the song, before the column is played
+
 
 long lastInterruptTime = 0;	// Used for button debounce
 
@@ -128,6 +128,28 @@ void dismiss_alarm(void){
 }
 
 
+double humidityVoltage(double value){
+
+    return ((3.3/1023)*value);
+
+}
+
+
+int temperatureCelsius(int value){
+
+    double adcVoltage = ((3.3/1023)*value);
+
+    return ((adcVoltage - 0.5) / 0.01);	// 0.5 = OFFSET, 0.01 = Temp Coefficient
+
+}
+
+
+double dacOUT(double light, double humidityV){
+
+
+    return ( (light/1023) * humidityV);
+}
+
 /*
  * Setup Function. Called once 
  */
@@ -179,9 +201,7 @@ return (((buffer[1] & 3) << 8) + buffer[2]);
  * 
  */
 void *monitorThread(void *threadargs){
-    // If the thread isn't ready, don't do anything
-//    while(!threadReady)
-  //      continue;
+
 
 	printf("----------------------------------------------------------------------------------------------\n"); 
 	printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
@@ -195,7 +215,8 @@ void *monitorThread(void *threadargs){
 
         }
 
-	printf("|   RTC Time   |   Sys Timer   |  %-12d|  %-8d|  %-7d|   DAC out   |   Alarm   |\n", analogReadADC(2), analogReadADC(0), analogReadADC(1));
+	printf("|   RTC Time   |   Sys Timer   | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |   Alarm   |\n", humidityVoltage(analogReadADC(2)), temperatureCelsius(analogReadADC(0)), analogReadADC(1), 
+dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
 	printf("----------------------------------------------------------------------------------------------\n"); 
  
 	sleep(1);

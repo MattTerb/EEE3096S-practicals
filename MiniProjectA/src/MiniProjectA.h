@@ -59,9 +59,9 @@ void change_frequency(void);
 void dismiss_alarm(void);
 int setup_gpio(void);
 int analogReadADC(int analogChannel);
-int humidityVoltage(int value);
+double humidityVoltage(double value);
 int temperatureCelsius(int value);
-int dacOUT(int light, int humidityV);
+double dacOUT(double light, double humidityV);
 
 int main(void);
 
