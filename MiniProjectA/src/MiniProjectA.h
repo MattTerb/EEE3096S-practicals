@@ -74,6 +74,8 @@ int hexCompensation(int units);
 int decCompensation(int units);
 void fetchTime(void);
 void decToBinary(int n);
+void sysTime(void);
+void setAlarm(double vOut);
 
 void cleanUp(int signal);
 

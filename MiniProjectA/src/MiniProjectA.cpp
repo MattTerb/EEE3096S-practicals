@@ -18,17 +18,19 @@
 #include "CurrentTime.c"
 
 
-unsigned char buffer[3];
+unsigned char bufferADC[3];
+unsigned char bufferDAC[2];
 bool monitoring = true; // should be set false when stopped
 bool stopped = false; // If set to true, program should close
-int hours, mins, secs;
-int h = 0;
-int m = 0;
-int s = 0;
+int hoursRTC, minsRTC, secsRTC;
+int hoursSys = 0;
+int minsSys = 0;
+int secsSys = 0;
 int freq = 1;
 long lastInterruptTime = 0;	// Used for button debounce
-
-
+int vOutBin[10];
+bool alarmOn = false;
+int alarmTimer = 200;
 // Configure your interrupts here.
 // Don't forget to use debouncing.
 void stop_start_isr(void){
@@ -37,7 +39,7 @@ void stop_start_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Stop/Start interrupt triggered\n");
+//        printf("Stop/Start interrupt triggered\n");
 
 	monitor();
 
@@ -52,7 +54,7 @@ void dismiss_alarm_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Dismiss Alarm interrupt triggered\n");
+  //      printf("Dismiss Alarm interrupt triggered\n");
 
 	dismiss_alarm();
 
@@ -66,7 +68,7 @@ void reset_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Reset interrupt triggered\n");
+    //    printf("Reset interrupt triggered\n");
 
         reset();
 
@@ -80,7 +82,7 @@ void frequency_isr(void){
     long interruptTime = millis();
 
     if (interruptTime - lastInterruptTime>200){
-        printf("Change frequency interrupt triggered\n");
+      //  printf("Change frequency interrupt triggered\n");
 
         change_frequency();
 
@@ -104,8 +106,15 @@ if (monitoring) {
 
 void reset(void){
 
-
-
+    printf("\e[1;1H\e[2J");	//Regex - Clear screen
+    secsSys = 0;
+    minsSys = 0;
+    hoursSys = 0;
+    alarmTimer = 200;
+    alarmOn = false;
+    printf("----------------------------------------------------------------------------------------------\n"); 
+    printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
+    printf("----------------------------------------------------------------------------------------------\n"); 
 
    
 
@@ -115,28 +124,26 @@ void change_frequency(void){
 
     if (freq == 1) {
         freq = 2;
-    printf("Freq = %d\n", freq);
+   // printf("Freq = %d\n", freq);
 	return;
 }
     if (freq == 2){
         freq = 5;
- printf("Freq = %d\n", freq);
-return;
+// printf("Freq = %d\n", freq);
+       return;
 }
     if (freq == 5){
         freq = 1; 
- printf("Freq = %d\n", freq);
-return;
+// printf("Freq = %d\n", freq);
+       return;
 }
 }
 
 
 void dismiss_alarm(void){
 
+	alarmOn = false;
 
-
-
-    
 
 }
 
@@ -156,11 +163,54 @@ int temperatureCelsius(int value){
 
 }
 
+void setAlarm(double vOut){
+
+    if (vOut < 0.65 || vOut > 2.65){
+	if (alarmTimer > 180 && (monitoring == true)) {
+//        printf("\nALARM set = %f\n",vOut);
+        alarmOn = true;
+        alarmTimer = 0;
+ }
+    }
+    
+
+
+}
+
 
 double dacOUT(double light, double humidityV){
 
+    double vOut = ( (light/1023) * humidityV );
+   // decToBinary(vOut);
+   // bufferDAC[0] = 0b01110000 | (vOut >> 4);
+   // bufferDAC[1] = vOut << 4;
+   // wiringPiSPIDataRW(SPI_CHAN, bufferDAC, 2);
+    // setAlarm(vOut);
+     return vOut;
+}
 
-    return ( (light/1023) * humidityV);
+void decToBinary(int n){
+    
+    int binaryNum[10];
+    int i = 0;
+    while (i < 10){      //Fill binarynum array with zeros
+        binaryNum[i] = 0;
+        i ++;
+    }
+    i = 0;
+    while (n > 0) {
+        binaryNum[i] = n%2; //convert n to binary
+        n = n/ 2;
+        i ++;
+    }
+    
+    i = 0;
+    for (int j = 10 - 1; j >= 0; j--){
+        vOutBin[i] = binaryNum[j];                  //populate display array - because one can't return an array in c
+        i ++;
+    } 
+
+  
 }
 
 /*
@@ -201,27 +251,39 @@ int setup_gpio(void){
 int analogReadADC(int analogChannel){
 
 
-//printf("Buffer0: %d, Buffer1: %d, Buffer2: %d ", buffer[0], buffer[1], buffer[2]);
-buffer[0] = 1;
-buffer[1] = (8 + analogChannel) << 4;
-buffer[2] = 0;
+bufferADC[0] = 1;
+bufferADC[1] = (8 + analogChannel) << 4;
+bufferADC[2] = 0;
 
-wiringPiSPIDataRW(SPI_CHAN, buffer, 3);
-//printf("AFTER = Buffer0: %d, Buffer1: %d, Buffer2: %d, Result: %d  ", buffer[0], buffer[1], buffer[2], (((buffer[1] & 3) << 8) + buffer[2]));
-return (((buffer[1] & 3) << 8) + buffer[2]);
+wiringPiSPIDataRW(SPI_CHAN, bufferADC, 3);
+
+return (((bufferADC[1] & 3) << 8) + bufferADC[2]);
 }
 
 void fetchTime(void){
 
-//	hours = hexCompensation(wiringPiI2CReadReg8(RTC, HOUR));	//Reads HOUR value from RTC
-//	mins = hexCompensation(wiringPiI2CReadReg8(RTC, MIN));	//Reads MIN value from RTC
-//	secs = hexCompensation(wiringPiI2CReadReg8(RTC, SEC)-0b10000000);	//Reads SEC value from RTC
-
-	hours = getHours();
-        mins = getMins();
-	secs = getSecs();
+	hoursRTC = getHours();
+        minsRTC = getMins();
+	secsRTC = getSecs();
 
 }
+
+void sysTime(void){
+
+    alarmTimer += freq ;
+    secsSys += freq;
+    if(secsSys > 59){
+        minsSys += 1;
+        secsSys = 0;
+    }
+
+    if(minsSys > 59){
+       hoursSys += 1;
+       minsSys = 0;
+    }
+
+}
+
 
 /* 
  * Thread that handles reading from SPI
@@ -237,20 +299,23 @@ void *monitorThread(void *threadargs){
  //You need to only be monitoring if the stopped flag is false
     while(!stopped){
        //Code to suspend playing if paused
-	while (!monitoring){
-	    printf("Paused");
-
-        }
+//	while (!monitoring){
+//	    sysTime();
+  //          sleep(freq);
+    //    }
 
 //Fetch the time from the RTC
 	fetchTime();
 
-	printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |   Alarm   |\n", hours, mins, secs,h, m, s, humidityVoltage(analogReadADC(2)), temperatureCelsius(analogReadADC(0)), analogReadADC(1), 
-dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
-	printf("----------------------------------------------------------------------------------------------\n"); 
-// printf("The current time is: %d:%d:%d\n", hours, mins, secs);
-        s = s + freq;
+        setAlarm(dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
+
+	printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, (monitoring == true) ? humidityVoltage(analogReadADC(2)): 0, (monitoring == true) ? temperatureCelsius(analogReadADC(0)) : 0 , (monitoring == true) ? analogReadADC(1) : 0, 
+(monitoring == true) ? dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))) : 0, (alarmOn == true) ? "*":" ");
+	printf("----------------------------------------------------------------------------------------------\n");
+
+        sysTime();
 	sleep(freq);
+       // setAlarm(dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
 }
 
     
