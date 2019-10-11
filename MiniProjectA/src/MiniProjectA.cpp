@@ -416,8 +416,9 @@ void *ledThread(void *threadargs){
 
     while(1){
 
-        alarmLED();
-
+        //alarmLED();
+        sysTime();
+        sleep(freq);
     }
 
     pthread_exit(NULL);
@@ -438,7 +439,7 @@ void *monitorThread(void *threadargs){
     temperature = temperatureCelsius(analogReadADC(0));
     light = analogReadADC(1);
     vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));
-
+    alarmLED();
     
 
 }
@@ -496,7 +497,7 @@ int main(){
         printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity, temperature , light, vOut, (alarmOn == true) ? "*":" ");
         printf("----------------------------------------------------------------------------------------------\n");
 
-        sysTime();
+      //  sysTime();
         sleep(freq);
 
 
