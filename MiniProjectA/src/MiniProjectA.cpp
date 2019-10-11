@@ -154,8 +154,6 @@ void change_frequency(void){
 void dismiss_alarm(void){
 
 	alarmOn = false;
-     //   digitalWrite(ALARM_LED, 0);
-
 
 }
 
@@ -412,14 +410,14 @@ void sysTime(void){
 
 }
 
-void *ledThread(void *threadargs){
+void *systemTimeThread(void *threadargs){
 
     while(1){
 
-        //alarmLED();
         sysTime();
         sleep(freq);
     }
+
 
     pthread_exit(NULL);
 }
@@ -435,10 +433,12 @@ void *monitorThread(void *threadargs){
        while(!monitoring){
 
        }
+    
     humidity = humidityVoltage(analogReadADC(2));
     temperature = temperatureCelsius(analogReadADC(0));
     light = analogReadADC(1);
     vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));
+    
     alarmLED();
     
 
@@ -472,14 +472,15 @@ int main(){
     pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
     param.sched_priority = newprio; /* set the priority; others are unchanged */
     pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
+    
     pthread_create(&thread_id[0], &tattr, monitorThread, (void *)1); /* with new priority specified */
     
-    pthread_create(&thread_id[1], &tattr, ledThread, (void *)1); /* with new priority specified */
+    pthread_create(&thread_id[1], &tattr, systemTimeThread, (void *)1); /* with new priority specified */
 
 	 
    printf("----------------------------------------------------------------------------------------------\n"); 
-        printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
-        printf("----------------------------------------------------------------------------------------------\n"); 
+   printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
+   printf("----------------------------------------------------------------------------------------------\n"); 
 
 //You need to only be monitoring if the stopped flag is false
     while(1){
@@ -497,7 +498,7 @@ int main(){
         printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity, temperature , light, vOut, (alarmOn == true) ? "*":" ");
         printf("----------------------------------------------------------------------------------------------\n");
 
-      //  sysTime();
+        
         sleep(freq);
 
 
