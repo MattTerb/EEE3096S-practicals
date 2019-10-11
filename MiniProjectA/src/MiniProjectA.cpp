@@ -17,6 +17,7 @@
 #include "MiniProjectA.h"
 #include "CurrentTime.c"
 
+#define NUM_THREADS 2
 
 unsigned char bufferADC[3];
 unsigned char bufferDAC[2];
@@ -33,6 +34,11 @@ bool alarmOn = false;
 int alarmTimer = 200;
 
 int RTC; //Holds the RTC instance
+
+double humidity = 0;
+int temperature = 0;
+int light = 0;
+double vOut = 0;
 
 
 // Configure your interrupts here.
@@ -116,7 +122,7 @@ void reset(void){
     hoursSys = 0;
     alarmTimer = 200;
     alarmOn = false;
-    digitalWrite(ALARM_LED, 0);
+   // digitalWrite(ALARM_LED, 0);
     printf("----------------------------------------------------------------------------------------------\n"); 
     printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
     printf("----------------------------------------------------------------------------------------------\n"); 
@@ -148,7 +154,7 @@ void change_frequency(void){
 void dismiss_alarm(void){
 
 	alarmOn = false;
-        digitalWrite(ALARM_LED, 0);
+     //   digitalWrite(ALARM_LED, 0);
 
 
 }
@@ -176,8 +182,9 @@ void setAlarm(double vOut){
 //        printf("\nALARM set = %f\n",vOut);
         alarmOn = true;
         alarmTimer = 0;
-        digitalWrite(ALARM_LED, 1);
- }
+       // digitalWrite(ALARM_LED, 1);
+ 
+}
     }
     
 
@@ -302,7 +309,7 @@ int setup_gpio(void){
     wiringPiSetup();
 
     //setting up the led
-    pinMode(ALARM_LED, OUTPUT);
+    pinMode(ALARM_LED, PWM_OUTPUT);
 
 
     //setting up the buttons
@@ -356,7 +363,6 @@ void fetchTime(void){
 	secsRTC = hexCompensation(wiringPiI2CReadReg8(RTC, SEC)-0b10000000);	//Reads SEC value from RTC
 
 
-
 }
 
 void sysTime(void){
@@ -376,6 +382,46 @@ void sysTime(void){
 }
 
 
+
+
+ void alarmLED(void){
+
+    for(int i=0;i<1024;i++){
+
+        if(alarmOn){
+        pwmWrite(ALARM_LED,i);
+        delay(1);
+    }
+	else{
+	pwmWrite(ALARM_LED,0);
+	}
+    }
+
+//    sleep(1);
+    for(int i=1023;i>=0;i--){
+
+        if(alarmOn){
+        pwmWrite(ALARM_LED,i);
+        delay(1);
+
+    }    
+	else{
+        pwmWrite(ALARM_LED,0);
+        }
+}
+
+}
+
+void *ledThread(void *threadargs){
+
+    while(1){
+
+        alarmLED();
+
+    }
+
+    pthread_exit(NULL);
+}
 /* 
  * Thread that handles reading from SPI
  * 
@@ -383,34 +429,19 @@ void sysTime(void){
 void *monitorThread(void *threadargs){
 
 
-	printf("----------------------------------------------------------------------------------------------\n"); 
-	printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
- 	printf("----------------------------------------------------------------------------------------------\n");   
+    while(1){
 
- //You need to only be monitoring if the stopped flag is false
-    while(!stopped){
-       //Code to suspend playing if paused
-//	while (!monitoring){
-//	    sysTime();
-  //          sleep(freq);
-    //    }
+       while(!monitoring){
 
-//Fetch the time from the RTC
-	fetchTime();
+       }
+    humidity = humidityVoltage(analogReadADC(2));
+    temperature = temperatureCelsius(analogReadADC(0));
+    light = analogReadADC(1);
+    vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));
 
-        setAlarm(dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
+    
 
-	printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, (monitoring == true) ? humidityVoltage(analogReadADC(2)): 0, (monitoring == true) ? temperatureCelsius(analogReadADC(0)) : 0 , (monitoring == true) ? analogReadADC(1) : 0, 
-(monitoring == true) ? dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))) : 0, (alarmOn == true) ? "*":" ");
-	printf("----------------------------------------------------------------------------------------------\n");
-
-        sysTime();
-	sleep(freq);
-       // setAlarm(dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2))));
 }
-
-    
-    
     pthread_exit(NULL);
 }
 
@@ -421,14 +452,18 @@ int main(){
 	 return 0;
     }
 
+	signal(SIGINT, cleanUp);
+
     	toggleTime();
+
+
 
     /* Initialize thread with parameters
      */ 
     
     //Write your logic here
     pthread_attr_t tattr;
-    pthread_t thread_id;
+    pthread_t thread_id[NUM_THREADS];
     int newprio = 99;
     sched_param param;
     
@@ -436,16 +471,50 @@ int main(){
     pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
     param.sched_priority = newprio; /* set the priority; others are unchanged */
     pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
-    pthread_create(&thread_id, &tattr, monitorThread, (void *)1); /* with new priority specified */
+    pthread_create(&thread_id[0], &tattr, monitorThread, (void *)1); /* with new priority specified */
     
+    pthread_create(&thread_id[1], &tattr, ledThread, (void *)1); /* with new priority specified */
+
 	 
-    //Join and exit the playthread
-    pthread_join(thread_id, NULL); 
+   printf("----------------------------------------------------------------------------------------------\n"); 
+        printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
+        printf("----------------------------------------------------------------------------------------------\n"); 
+
+//You need to only be monitoring if the stopped flag is false
+    while(1){
+
+
+        while(!monitoring){
+        }
+
+        //Fetch the time from the RTC
+        fetchTime();
+
+
+        setAlarm(vOut);
+
+        printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity, temperature , light, vOut, (alarmOn == true) ? "*":" ");
+        printf("----------------------------------------------------------------------------------------------\n");
+
+        sysTime();
+        sleep(freq);
+
+
+} 
     pthread_exit(NULL);
 
 
 
     return 0;
+}
+
+void cleanUp(int signal) {
+
+	printf("\nProgram Ended\n");
+ 
+	pinMode(ALARM_LED, 0);		//Sets seconds LED to input
+	exit(0);	//Exits program
+
 }
 
 //This interrupt will fetch current time from another script and write it to the clock registers

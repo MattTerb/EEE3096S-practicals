@@ -81,7 +81,7 @@ void fetchTime(void);
 void decToBinary(int n);
 void sysTime(void);
 void setAlarm(double vOut);
-
+void alarmLED(void);
 
 void cleanUp(int signal);
 
