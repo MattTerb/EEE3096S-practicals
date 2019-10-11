@@ -213,6 +213,8 @@ void decToBinary(int n){
   
 }
 
+
+
 /*
  * Setup Function. Called once 
  */
@@ -329,6 +331,7 @@ int main(){
         printf("Setup error");
 	 return 0;
     }
+
 
 
     /* Initialize thread with parameters

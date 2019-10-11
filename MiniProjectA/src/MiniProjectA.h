@@ -31,6 +31,9 @@
 #include <iostream>
 #include <signal.h> // For keyboard interrupt
 
+
+
+
 //Define buttons
 #define CHANGE_FREQ_BTN 0	//BCM 17
 #define RESET_TIME_BTN 2	//BCM 27
