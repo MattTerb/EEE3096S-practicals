@@ -112,6 +112,7 @@ void reset(void){
     hoursSys = 0;
     alarmTimer = 200;
     alarmOn = false;
+    digitalWrite(ALARM_LED, 0);
     printf("----------------------------------------------------------------------------------------------\n"); 
     printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
     printf("----------------------------------------------------------------------------------------------\n"); 
@@ -143,6 +144,7 @@ void change_frequency(void){
 void dismiss_alarm(void){
 
 	alarmOn = false;
+        digitalWrite(ALARM_LED, 0);
 
 
 }
@@ -170,6 +172,7 @@ void setAlarm(double vOut){
 //        printf("\nALARM set = %f\n",vOut);
         alarmOn = true;
         alarmTimer = 0;
+        digitalWrite(ALARM_LED, 1);
  }
     }
     
@@ -221,6 +224,10 @@ void decToBinary(int n){
 int setup_gpio(void){
     //Set up wiring Pi
     wiringPiSetup();
+
+    //setting up the led
+    pinMode(ALARM_LED, OUTPUT);
+
 
     //setting up the buttons
     pinMode(CHANGE_FREQ_BTN, INPUT);
