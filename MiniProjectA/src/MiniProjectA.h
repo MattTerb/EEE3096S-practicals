@@ -71,14 +71,17 @@ int analogReadADC(int analogChannel);
 double humidityVoltage(double value);
 int temperatureCelsius(int value);
 double dacOUT(double light, double humidityV);
-int hFormat(int hours);
 
+int hFormat(int hours);
+void toggleTime(void);
 int hexCompensation(int units);
 int decCompensation(int units);
 void fetchTime(void);
+
 void decToBinary(int n);
 void sysTime(void);
 void setAlarm(double vOut);
+
 
 void cleanUp(int signal);
 
