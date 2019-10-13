@@ -17,10 +17,11 @@
 #include "MiniProjectA.h"
 #include "CurrentTime.c"
 
-#define NUM_THREADS 3
+#define NUM_THREADS 2
+
 
 //#define BLYNK_DEBUG
-#define BLYNK_PRINT stdout
+//#define BLYNK_PRINT stdout
 #include <BlynkApiWiringPi.h>
 #include <BlynkSocket.h>
 #include <BlynkOptionsParser.h>
@@ -55,36 +56,91 @@ int temperature = 0;
 int light = 0;
 double vOut = 0;
 
+void checkPhysicalButton();
+
+
+int btnState = HIGH;
+
+
+long int timerFreq = 1000;
+
+int timerID1;
+int timerID2;
+int timerID3;
+int timerID4;
+int timerID5;
 
 BlynkTimer tmr;
 
-BLYNK_WRITE(V0)
-{
-    printf("Govalue: %s\n", param[0].asStr());
+char strSysTime[12];
+char strRTCTime[12];
+char strTemp[12];
+char strHumid[12];
+char strVout[12];
+char strAlarm[12];
+
+void sendData();
+void sendToTerminal();
+void sendToConsole();
+void changeTimer();
+void sendSysTime();
+void outputFormat();
+
+BLYNK_CONNECTED() {
+
+    Blynk.virtualWrite(V5, alarmOn);
+ 
+
 }
 
-void setup()
-{
-    Blynk.begin(auth, serv, port);
+BLYNK_WRITE(V5) {
+
+
+    alarmOn = false;
+    Blynk.virtualWrite(V5, LOW);
+}
+
+void setup() {
+
+
+
+     timerID5 =  tmr.setInterval(timerFreq, outputFormat);
+
+       tmr.setTimer(1000, [](){
+
+        Blynk.virtualWrite(V0,"clr");   
+        
+        Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
+        Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n"); 
+        Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
+
+       },1);
+
+
+      timerID1 = tmr.setInterval(timerFreq, sendData);
+
+
+      timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
+
+      timerID3 = tmr.setInterval(timerFreq, sendToConsole);
+
+       timerID4 = tmr.setInterval(timerFreq, sendSysTime);
 
     tmr.setInterval(1000, [](){
 
-      char strTime[12];
-      sprintf(strTime, "%02d:%02d:%02d", hoursSys,minsSys,secsSys);
-
-      Blynk.virtualWrite(V1, strTime);
-      Blynk.virtualWrite(V2, humidity);
-      Blynk.virtualWrite(V3, light);
+	fetchTime();
 
 
-      Blynk.virtualWrite(V4, temperature);
+    });
+
+    tmr.setInterval(1000, [](){
+
+        setAlarm(vOut);
 
 
-      Blynk.virtualWrite(V0, "------------------------------------------------------\n"); 
-      Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humidity|Temp|Light|DAC out|Alarm|\n"); 
-      Blynk.virtualWrite(V0, "------------------------------------------------------\n"); 
+    });
 
-      });
+    tmr.setInterval(100, checkPhysicalButton);
 
 }
 
@@ -94,7 +150,88 @@ void loop()
     tmr.run();
 }
 
+void outputFormat(){
 
+//      char strSysTime[12];
+      sprintf(strSysTime, "%02d:%02d:%02d", hoursSys,minsSys,secsSys);
+
+  //    char strRTCTime[12];
+      sprintf(strRTCTime, "%02d:%02d:%02d", hoursRTC,minsRTC,secsRTC);
+
+    //  char strTemp[12];
+      sprintf(strTemp, "%-2dC", temperature);
+
+      //char strHumid[12];
+      sprintf(strHumid, "%-3.1fV", humidity);
+
+      //char strVout[12];
+      sprintf(strVout, "%-3.2fV", vOut);
+
+      //char strAlarm[12];
+      sprintf(strAlarm, "%1s", (alarmOn == true) ? "*":" ");
+
+
+}
+
+void changeTimer(){
+
+    tmr.deleteTimer(timerID1);
+    tmr.deleteTimer(timerID2);
+    tmr.deleteTimer(timerID3);
+    tmr.deleteTimer(timerID4);
+    tmr.deleteTimer(timerID5);
+
+    timerID1 = tmr.setInterval(timerFreq, sendData);
+    timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
+    timerID3 = tmr.setInterval(timerFreq, sendToConsole);
+    timerID4 = tmr.setInterval(timerFreq, sendSysTime);
+    timerID5 = tmr.setInterval(timerFreq, outputFormat); 
+
+}
+
+void checkPhysicalButton() {
+
+
+    if (digitalRead(DISMISS_ALARM_BTN) == LOW) {
+
+        if (btnState != LOW){
+
+            alarmOn = false;
+            Blynk.virtualWrite(V5,alarmOn);
+        }
+        btnState = LOW;
+    } else {
+      btnState = HIGH;
+    }
+}
+
+
+void sendSysTime(){
+
+      Blynk.virtualWrite(V1, strSysTime);
+}
+void sendData(){
+
+
+      Blynk.virtualWrite(V2, strHumid);
+      Blynk.virtualWrite(V3, light);
+      Blynk.virtualWrite(V4, strTemp);
+
+}
+
+void sendToTerminal(){
+
+
+        Blynk.virtualWrite(V0, "|",strRTCTime," | ",strSysTime, " | ",strHumid," | ",strTemp," | ",light," | ",strVout," |",strAlarm,"|\n");
+        Blynk.virtualWrite(V0, "\n---------------------------------------------------\n\n"); 
+
+}
+void sendToConsole(){
+
+        printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity,temperature , light, vOut, (alarmOn == true) ? "*":" ");
+        printf("----------------------------------------------------------------------------------------------\n");
+
+}
 
 
 // Configure your interrupts here.
@@ -149,8 +286,7 @@ void frequency_isr(void){
 
     if (interruptTime - lastInterruptTime>200){
       //  printf("Change frequency interrupt triggered\n");
-
-        change_frequency();
+change_frequency();
 
     }
     lastInterruptTime = interruptTime;
@@ -162,15 +298,33 @@ void monitor(void){
 
 
 if (monitoring) {
-        monitoring = false;
-    }
+    
+    monitoring = false;
+
+    tmr.deleteTimer(timerID1);
+    tmr.deleteTimer(timerID2);
+    tmr.deleteTimer(timerID3);    
+
+}
     else{
-        monitoring = true;
+    
+    monitoring = true;
+
+    timerID1 = tmr.setInterval(timerFreq, sendData);
+    timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
+    timerID3 = tmr.setInterval(timerFreq, sendToConsole);
+
     }
 }
 
 
 void reset(void){
+
+    Blynk.virtualWrite(V0,"clr");   
+
+    Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
+    Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n"); 
+    Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
 
     printf("\e[1;1H\e[2J");	//Regex - Clear screen
     secsSys = 0;
@@ -191,27 +345,35 @@ void change_frequency(void){
 
     if (freq == 1) {
         freq = 2;
-   // printf("Freq = %d\n", freq);
-	return;
+timerFreq = freq * 1000;
+        changeTimer();
+
+   	return;
 }
     if (freq == 2){
         freq = 5;
-// printf("Freq = %d\n", freq);
-       return;
+timerFreq = freq * 1000;
+        changeTimer();
+
+     return;
 }
     if (freq == 5){
         freq = 1; 
-// printf("Freq = %d\n", freq);
+timerFreq = freq * 1000;
+        changeTimer();
+
        return;
 }
+
+
 }
 
 
 void dismiss_alarm(void){
 
 	alarmOn = false;
-
-}
+        Blynk.virtualWrite(V5,alarmOn); 
+   }
 
 
 double humidityVoltage(double value){
@@ -236,9 +398,8 @@ void setAlarm(double vOut){
 //        printf("\nALARM set = %f\n",vOut);
         alarmOn = true;
         alarmTimer = 0;
-       // digitalWrite(ALARM_LED, 1);
- 
-}
+        Blynk.virtualWrite(V5,alarmOn); 
+        }
     }
     
 
@@ -360,7 +521,7 @@ int hFormat(int hours){
  */
 int setup_gpio(void){
     //Set up wiring Pi
-    wiringPiSetup();
+    wiringPiSetupGpio();
 
     //setting up the led
     pinMode(ALARM_LED, PWM_OUTPUT);
@@ -462,30 +623,19 @@ void sysTime(void){
 	else{
         pwmWrite(ALARM_LED,0);
         }
-}
+   }
 
 }
 
-void *blynkThread(void *threadargs){
-
-   // parse_options(argc, argv, auth, serv, port);
-
-   // setup();
-    while(true) {
-        loop();
-	alarmLED();
-
-    }
-
-pthread_exit(NULL);
-}
 
 void *systemTimeThread(void *threadargs){
 
     while(1){
 
+
         sysTime();
         sleep(freq);
+//       alarmLED();
     }
 
 
@@ -500,17 +650,13 @@ void *monitorThread(void *threadargs){
 
     while(1){
 
-       while(!monitoring){
-
-       }
-    
+ 
        humidity = humidityVoltage(analogReadADC(2));
        temperature = temperatureCelsius(analogReadADC(0));
        light = analogReadADC(1);
        vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));
-    
-      // alarmLED();
-    
+
+       alarmLED();
 
 }
     pthread_exit(NULL);
@@ -530,13 +676,9 @@ int main(int argc, char* argv[]){
 
      parse_options(argc, argv, auth, serv, port);
 
-    setup();
-   
-   // while(true) {
-   //     loop();
- //   }
+     Blynk.begin(auth, serv, port);
 
-
+     setup();
 
 
     /* Initialize thread with parameters
@@ -553,37 +695,21 @@ int main(int argc, char* argv[]){
     param.sched_priority = newprio; /* set the priority; others are unchanged */
     pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
     
-    pthread_create(&thread_id[0], &tattr, blynkThread, (void *)1); /* with new priority specified */
+   // pthread_create(&thread_id[0], &tattr, blynkThread, (void *)1); /* with new priority specified */
 
-    pthread_create(&thread_id[1], &tattr, systemTimeThread, (void *)1); /* with new priority specified */
+    pthread_create(&thread_id[0], &tattr, systemTimeThread, (void *)1); /* with new priority specified */
 
-    pthread_create(&thread_id[2], &tattr, monitorThread, (void *)1); /* with new priority specified */
+    pthread_create(&thread_id[1], &tattr, monitorThread, (void *)1); /* with new priority specified */
 
-   sleep(2);
+//   sleep(2);
 
    printf("----------------------------------------------------------------------------------------------\n"); 
    printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
    printf("----------------------------------------------------------------------------------------------\n"); 
 
-//You need to only be monitoring if the stopped flag is false
     while(1){
-
-
-        while(!monitoring){
-        }
-
-        //Fetch the time from the RTC
-        fetchTime();
-
-
-        setAlarm(vOut);
-
-        printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity, temperature , light, vOut, (alarmOn == true) ? "*":" ");
-        printf("----------------------------------------------------------------------------------------------\n");
-
-        
-        sleep(freq);
-
+//timerFreq = freq * 1000;
+	loop();
 } 
     pthread_exit(NULL);
 

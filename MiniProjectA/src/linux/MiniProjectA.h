@@ -33,13 +33,13 @@
 
 
 //Define buttons
-#define CHANGE_FREQ_BTN 0	//BCM 17
-#define RESET_TIME_BTN 2	//BCM 27
-#define STOP_START_BTN 3	//BCM 22
-#define DISMISS_ALARM_BTN 21	//BCM 5
+#define CHANGE_FREQ_BTN 17	//BCM 17
+#define RESET_TIME_BTN 27	//BCM 27
+#define STOP_START_BTN 22	//BCM 22
+#define DISMISS_ALARM_BTN 5	//BCM 5
 
 //Define LED
-#define ALARM_LED 1       //BCM 18
+#define ALARM_LED 18       //BCM 18
 
 //SPI Settings
 #define SPI_CHAN 0	//CEO
