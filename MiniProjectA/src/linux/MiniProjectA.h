@@ -32,6 +32,12 @@
 #include <signal.h> // For keyboard interrupt
 
 
+//Defines
+#define NUM_THREADS 2
+
+
+
+
 //Define buttons
 #define CHANGE_FREQ_BTN 17	//BCM 17
 #define RESET_TIME_BTN 27	//BCM 27
@@ -45,12 +51,6 @@
 #define SPI_CHAN 0	//CEO
 #define SPI_SPEED 1350000	// Hz (18*75ksps)
 
-//Define constants
-const char RTC_ADDR = 0x6f;
-const char SEC = 0x00;
-const char MIN = 0x01;
-const char HOUR = 0x02;
-const char TIMEZONE = 2; // +02H00 (RSA)
 
 //Function definitions
 void stop_start_isr(void);
@@ -70,10 +70,6 @@ double humidityVoltage(double value);
 int temperatureCelsius(int value);
 double dacOUT(double light, double humidityV);
 
-int hFormat(int hours);
-void toggleTime(void);
-int hexCompensation(int units);
-int decCompensation(int units);
 void fetchTime(void);
 
 void decToBinary(int n);
@@ -83,7 +79,15 @@ void alarmLED(void);
 
 void cleanUp(int signal);
 
-//int main(void);
+void checkPhysicalButton();
+
+void sendData();
+void sendToTerminal();
+void sendToConsole();
+void changeTimer();
+void sendSysTime();
+void outputFormat();
+
 int main(int argc, char* argv[]);
 
 #endif

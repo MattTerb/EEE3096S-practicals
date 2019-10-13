@@ -17,9 +17,6 @@
 #include "MiniProjectA.h"
 #include "CurrentTime.c"
 
-#define NUM_THREADS 2
-
-
 //#define BLYNK_DEBUG
 //#define BLYNK_PRINT stdout
 #include <BlynkApiWiringPi.h>
@@ -35,261 +32,267 @@ static uint16_t port;
 #include <BlynkWidgets.h>
 
 
-unsigned char bufferADC[3];
-unsigned char bufferDAC[2];
+unsigned char bufferADC[3];	//buffer to send and receive data in 3 8bit packets
+unsigned char bufferDAC[2];     //buffer to send and receive data in 2 8bit packets
+
 bool monitoring = true; // should be set false when stopped
-bool stopped = false; // If set to true, program should close
-int hoursRTC, minsRTC, secsRTC;
+
+int hoursRTC, minsRTC, secsRTC;		//store RTC time values
 int hoursSys = 0;
-int minsSys = 0;
+int minsSys = 0;			//store System time values
 int secsSys = 0;
-int freq = 1;
+int freq = 1;			// Starts the freq at 1s intervals
 long lastInterruptTime = 0;	// Used for button debounce
 int vOutBin[10];
-bool alarmOn = false;
-int alarmTimer = 200;
-
-//int RTC; //Holds the RTC instance
-
-double humidity = 0;
-int temperature = 0;
-int light = 0;
-double vOut = 0;
-
-void checkPhysicalButton();
+bool alarmOn = false;		// Status of alarm
+int alarmTimer = 200;		// Counter for alarm. Starts above 180s so the alarm can turn on
 
 
-int btnState = HIGH;
+double humidity = 0;		// Store the humidity value
+int temperature = 0;		// Store the temperature value
+int light = 0;			// Store the light value
+double vOut = 0;		// Store the output voltage value
 
 
-long int timerFreq = 1000;
+int btnState = HIGH;		// Used to toggle button state
+
+
+long int timerFreq = 1000;	// Used to change timer interval
 
 int timerID1;
 int timerID2;
-int timerID3;
+int timerID3;			// Timer IDs
 int timerID4;
 int timerID5;
 
-BlynkTimer tmr;
+BlynkTimer tmr;			// Initiates timer instance
 
 char strSysTime[12];
 char strRTCTime[12];
-char strTemp[12];
+char strTemp[12];		// Used to store output values as strings for formatting
 char strHumid[12];
 char strVout[12];
 char strAlarm[12];
 
-void sendData();
-void sendToTerminal();
-void sendToConsole();
-void changeTimer();
-void sendSysTime();
-void outputFormat();
 
-BLYNK_CONNECTED() {
 
-    Blynk.virtualWrite(V5, alarmOn);
- 
+///////////////////////////////////////////////////////////
+
+
+//	Virtual Pin Numbers		Widget
+
+//		V0	-------------->	Terminal
+//		V1	-------------->	System Time display
+//		V2	-------------->	Humidity display
+//		V3	-------------->	Light display
+//		V4	-------------->	Temperature display
+//		V5	-------------->	Alarm button
+
+
+///////////////////////////////////////////////////////////
+
+
+
+
+BLYNK_CONNECTED() {	// Called when Blynk connects
+
+	Blynk.virtualWrite(V5, alarmOn);		// Syncs virtual button state with physical button when Blynk connects
 
 }
 
-BLYNK_WRITE(V5) {
+
+BLYNK_WRITE(V5) {	// Called when virtual button is pressed
 
 
-    alarmOn = false;
-    Blynk.virtualWrite(V5, LOW);
+	alarmOn = false;		// Sets alarm state to false
+	Blynk.virtualWrite(V5, LOW);	//Sets virtual button state to LOW
+
 }
 
-void setup() {
+
+void setup() {		// Set up Blynk timers
 
 
+	tmr.setInterval(500, fetchTime);		// Fetch time every 0.5s
 
-     timerID5 =  tmr.setInterval(timerFreq, outputFormat);
+	timerID5 =  tmr.setInterval(timerFreq, outputFormat);		//TimerID5 - calls outputFormat every timerFreq seconds
 
-       tmr.setTimer(1000, [](){
+        tmr.setTimer(1000, [](){	// Timer called once after 1s
 
-        Blynk.virtualWrite(V0,"clr");   
+        	Blynk.virtualWrite(V0,"clr");   	// Clears terminal widget on app
         
-        Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
-        Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n"); 
-        Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
+        	Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
+        	Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n");		// Prints out table heading to terminal widget 
+        	Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
 
-       },1);
-
-
-      timerID1 = tmr.setInterval(timerFreq, sendData);
+        },1);	// Number of times called
 
 
-      timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
+	timerID1 = tmr.setInterval(timerFreq, sendData);		// Send data to Blynk App every timerFreq seconds
 
-      timerID3 = tmr.setInterval(timerFreq, sendToConsole);
+        timerID2 = tmr.setInterval(timerFreq, sendToTerminal);		// Print to terminal widget every timerFreq seconds
 
-       timerID4 = tmr.setInterval(timerFreq, sendSysTime);
+        timerID3 = tmr.setInterval(timerFreq, sendToConsole);		// Print to pi console every timerFreq seconds
 
-  //  tmr.setInterval(1000, [](){
+        timerID4 = tmr.setInterval(timerFreq, sendSysTime);		// Send system time to Blynk app every timerFreq seconds
 
-//	fetchTime();
+        tmr.setInterval(100, [](){		// Timer called every 0.1 seconds
 
+	        setAlarm(vOut);		// Sets alarm if vOut is outside of specific range
 
-   // });
-
-    tmr.setInterval(1000, [](){
-
-        setAlarm(vOut);
+        });
 
 
-    });
-
-    tmr.setInterval(100, checkPhysicalButton);
+	tmr.setInterval(100, checkPhysicalButton);		// Checks physical button every 0.1 seconds
 
 }
 
-void loop()
-{
-    Blynk.run();
-    tmr.run();
+
+void loop() {
+	Blynk.run();		// Start connection to Blynk App
+
+        tmr.run();		// Run timers
 }
+
 
 void outputFormat(){
 
-//      char strSysTime[12];
-      sprintf(strSysTime, "%02d:%02d:%02d", hoursSys,minsSys,secsSys);
+	sprintf(strSysTime, "%02d:%02d:%02d", hoursSys,minsSys,secsSys);		// Formats system time values as "hh:mm:ss" string
 
-  //    char strRTCTime[12];
-      sprintf(strRTCTime, "%02d:%02d:%02d", hoursRTC,minsRTC,secsRTC);
+        sprintf(strRTCTime, "%02d:%02d:%02d", hoursRTC,minsRTC,secsRTC);		// Formats RTC time values as "hh:mm:ss" string
 
-    //  char strTemp[12];
-      sprintf(strTemp, "%-2dC", temperature);
+        sprintf(strTemp, "%-2dC", temperature);		// Formats temperature values as "19C" string
 
-      //char strHumid[12];
-      sprintf(strHumid, "%-3.1fV", humidity);
+        sprintf(strHumid, "%-3.1fV", humidity);		// Formats humidity values as "1.3V" string
 
-      //char strVout[12];
-      sprintf(strVout, "%-3.2fV", vOut);
+        sprintf(strVout, "%-3.2fV", vOut);		// Formats output voltage as "1.25V" string
 
-      //char strAlarm[12];
-      sprintf(strAlarm, "%1s", (alarmOn == true) ? "*":" ");
+        sprintf(strAlarm, "%1s", (alarmOn == true) ? "*":" ");		// Sets alarm string to "*" if alarmOn is true or " " if alarmOn is false
 
 
 }
 
 void changeTimer(){
 
-    tmr.deleteTimer(timerID1);
-    tmr.deleteTimer(timerID2);
-    tmr.deleteTimer(timerID3);
-    tmr.deleteTimer(timerID4);
-    tmr.deleteTimer(timerID5);
 
-    timerID1 = tmr.setInterval(timerFreq, sendData);
-    timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
-    timerID3 = tmr.setInterval(timerFreq, sendToConsole);
-    timerID4 = tmr.setInterval(timerFreq, sendSysTime);
-    timerID5 = tmr.setInterval(timerFreq, outputFormat); 
+	if (monitoring){		// Only executes if monitoring is set to true
 
+		tmr.deleteTimer(timerID1);
+    		tmr.deleteTimer(timerID2);
+    		tmr.deleteTimer(timerID3);		// Deletes all timers with timer IDs
+    		tmr.deleteTimer(timerID4);
+    		tmr.deleteTimer(timerID5);
+
+    		timerID1 = tmr.setInterval(timerFreq, sendData);
+    		timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
+    		timerID3 = tmr.setInterval(timerFreq, sendToConsole);		// Creates new timers with new timerFreq values
+    		timerID4 = tmr.setInterval(timerFreq, sendSysTime);
+    		timerID5 = tmr.setInterval(timerFreq, outputFormat); 
+
+	}
 }
 
 void checkPhysicalButton() {
 
 
-    if (digitalRead(DISMISS_ALARM_BTN) == LOW) {
+	if (digitalRead(DISMISS_ALARM_BTN) == LOW) {		// Execute if physical button is pushed
 
-        if (btnState != LOW){
+        	if (btnState != LOW){
 
-            alarmOn = false;
-            Blynk.virtualWrite(V5,alarmOn);
-        }
-        btnState = LOW;
-    } else {
-      btnState = HIGH;
-    }
+            		alarmOn = false;		// If btnState was high set turn alarm off
+            		Blynk.virtualWrite(V5,alarmOn);		// Set virtual button to LOW
+        	}
+	        btnState = LOW;
+
+	} 
+	else {
+
+		btnState = HIGH;
+    	}
 }
 
 
 void sendSysTime(){
 
-      Blynk.virtualWrite(V1, strSysTime);
+	Blynk.virtualWrite(V1, strSysTime);		// Send system time value to system time display on Blynk App
 }
+
 void sendData(){
 
 
-      Blynk.virtualWrite(V2, strHumid);
-      Blynk.virtualWrite(V3, light);
-      Blynk.virtualWrite(V4, strTemp);
+	Blynk.virtualWrite(V2, strHumid);             // Send humidity value to humidity display on Blynk App
+        Blynk.virtualWrite(V3, light);             // Send light value to light display on Blynk App
+        Blynk.virtualWrite(V4, strTemp);             // Send temperature value to temperature display on Blynk App
 
 }
 
 void sendToTerminal(){
 
 
-        Blynk.virtualWrite(V0, "|",strRTCTime," | ",strSysTime, " | ",strHumid," | ",strTemp," | ",light," | ",strVout," |",strAlarm,"|\n");
+	Blynk.virtualWrite(V0, "|",strRTCTime," | ",strSysTime, " | ",strHumid," | ",strTemp," | ",light," | ",strVout," |",strAlarm,"|\n");		// Print to terminal widget
         Blynk.virtualWrite(V0, "\n---------------------------------------------------\n\n"); 
 
 }
 void sendToConsole(){
 
-        printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity,temperature , light, vOut, (alarmOn == true) ? "*":" ");
-        printf("----------------------------------------------------------------------------------------------\n");
+	printf("| %02d:%02d:%02d     | %02d:%02d:%02d      | %-3.1f V        | %-2d C     | %-3d     | %-3.2f V      |     %1s     |\n", hoursRTC, minsRTC, secsRTC,hoursSys, minsSys, secsSys, humidity,temperature , light, vOut, 
+	(alarmOn  == true) ? "*":" ");
+        printf("----------------------------------------------------------------------------------------------\n");		// Print to pi console
 
 }
 
 
-// Configure your interrupts here.
-// Don't forget to use debouncing.
 void stop_start_isr(void){
 
-    //Debounce
-    long interruptTime = millis();
+	//Debounce
+        long interruptTime = millis();
 
-    if (interruptTime - lastInterruptTime>200){
-//        printf("Stop/Start interrupt triggered\n");
+        if (interruptTime - lastInterruptTime>200){
 
-	monitor();
+		monitor();		// Call monitor function when stop/start button is pushed
 
-
-}
-    lastInterruptTime = interruptTime;
+	}
+    	lastInterruptTime = interruptTime;
 }
 
 void dismiss_alarm_isr(void){
 
-    //Debounce
-    long interruptTime = millis();
+	//Debounce
+        long interruptTime = millis();
 
-    if (interruptTime - lastInterruptTime>200){
-  //      printf("Dismiss Alarm interrupt triggered\n");
+        if (interruptTime - lastInterruptTime>200){
 
-	dismiss_alarm();
+		dismiss_alarm();		// Call dimiss alarm function when dimiss alarm button is pushed
 
-    }
-    lastInterruptTime = interruptTime;
+        }
+    	lastInterruptTime = interruptTime;
 }
 
 void reset_isr(void){
 
-    //Debounce
-    long interruptTime = millis();
+	//Debounce
+        long interruptTime = millis();
 
-    if (interruptTime - lastInterruptTime>200){
-    //    printf("Reset interrupt triggered\n");
+        if (interruptTime - lastInterruptTime>200){
 
-        reset();
+        	reset();		// Call reset function when reset button is pushed
 
-    }
-    lastInterruptTime = interruptTime;
+        }
+        lastInterruptTime = interruptTime;
 }
+
 
 void frequency_isr(void){
 
-    //Debounce
-    long interruptTime = millis();
+	//Debounce
+        long interruptTime = millis();
 
-    if (interruptTime - lastInterruptTime>200){
-      //  printf("Change frequency interrupt triggered\n");
-change_frequency();
+        if (interruptTime - lastInterruptTime>200){
 
-    }
-    lastInterruptTime = interruptTime;
+		change_frequency();		// Call change frequency function when frequency button is pushed
+
+        }
+        lastInterruptTime = interruptTime;
 }
 
 
@@ -297,45 +300,46 @@ change_frequency();
 void monitor(void){
 
 
-if (monitoring) {
+	if (monitoring) {
     
-    monitoring = false;
+        	monitoring = false;		// Set monitoring to false if it was true
 
-    tmr.deleteTimer(timerID1);
-    tmr.deleteTimer(timerID2);
-    tmr.deleteTimer(timerID3);    
+    		tmr.deleteTimer(timerID1);
+    		tmr.deleteTimer(timerID2);		// Delete timers to stop output
+    		tmr.deleteTimer(timerID3);    
 
-}
-    else{
+	}
+        else{
     
-    monitoring = true;
+        	monitoring = true;		// Set monitoring to true if it was false
 
-    timerID1 = tmr.setInterval(timerFreq, sendData);
-    timerID2 = tmr.setInterval(timerFreq, sendToTerminal);
-    timerID3 = tmr.setInterval(timerFreq, sendToConsole);
+        	timerID1 = tmr.setInterval(timerFreq, sendData);
+        	timerID2 = tmr.setInterval(timerFreq, sendToTerminal);		// Create timers to resume output
+    	        timerID3 = tmr.setInterval(timerFreq, sendToConsole);
 
-    }
+        }
 }
 
 
 void reset(void){
 
-    Blynk.virtualWrite(V0,"clr");   
+	Blynk.virtualWrite(V0,"clr");		// Clears terminal widget screen
 
-    Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
-    Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n"); 
-    Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
+	Blynk.virtualWrite(V0, "---------------------------------------------------\n"); 
+        Blynk.virtualWrite(V0, "|RTC Time|Sys Timer|Humid|Temp|Light|DAC out|Alarm|\n");		// Prints out table heading to terminal widget 
+        Blynk.virtualWrite(V0, "---------------------------------------------------\n\n"); 
 
-    printf("\e[1;1H\e[2J");	//Regex - Clear screen
-    secsSys = 0;
-    minsSys = 0;
-    hoursSys = 0;
-    alarmTimer = 200;
-    alarmOn = false;
-   // digitalWrite(ALARM_LED, 0);
-    printf("----------------------------------------------------------------------------------------------\n"); 
-    printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
-    printf("----------------------------------------------------------------------------------------------\n"); 
+        printf("\e[1;1H\e[2J");	//Regex - Clears pi console screen
+
+        secsSys = 0;
+        minsSys = 0;		// Sets system timer to 0
+        hoursSys = 0;
+        alarmTimer = 200;		// Resets alarm count
+        alarmOn = false;		// Sets alarm to false
+
+        printf("----------------------------------------------------------------------------------------------\n"); 
+        printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n");		// Prints out table heading to pi console 
+        printf("----------------------------------------------------------------------------------------------\n"); 
 
    
 
@@ -343,27 +347,29 @@ void reset(void){
 
 void change_frequency(void){
 
-    if (freq == 1) {
-        freq = 2;
-timerFreq = freq * 1000;
-        changeTimer();
+	if (freq == 1) {
+        	freq = 2;		// If freq was 1 it changes to 2
+		timerFreq = freq * 1000;		// updates timerFreq to 2s
+        	changeTimer();		// Resets timers with new timerFreq
 
-   	return;
-}
-    if (freq == 2){
-        freq = 5;
-timerFreq = freq * 1000;
-        changeTimer();
+   		return;
+	}
 
-     return;
-}
-    if (freq == 5){
-        freq = 1; 
-timerFreq = freq * 1000;
-        changeTimer();
+	if (freq == 2){
+        	freq = 5;		// If freq was 2 it chnages to 5
+		timerFreq = freq * 1000;		// updates timerFreq to 5s
+        	changeTimer();
 
-       return;
-}
+     		return;
+	}
+
+	if (freq == 5){
+        	freq = 1;		// If freq was 5 it changes back to 1
+		timerFreq = freq * 1000;		// updates timerFreq to 1s
+        	changeTimer();
+
+       		return;
+	}
 
 
 }
@@ -371,37 +377,37 @@ timerFreq = freq * 1000;
 
 void dismiss_alarm(void){
 
-	alarmOn = false;
-        Blynk.virtualWrite(V5,alarmOn); 
-   }
+	alarmOn = false;		// Turns alarm status to off
+       	Blynk.virtualWrite(V5,alarmOn);		// Sets virtual button state to LOW
+ 
+}
 
 
 double humidityVoltage(double value){
 
-    return ((3.3/1023)*value);
+
+	return ((3.3/1023)*value);		// Converts humidity value out of 1023 to voltage out of 3.3V
 
 }
 
 
 int temperatureCelsius(int value){
 
-    double adcVoltage = ((3.3/1023)*value);
+	double adcVoltage = ((3.3/1023)*value);		// Converts temperature value out of 1023 to voltage out of 3.3V
 
-    return ((adcVoltage - 0.5) / 0.01);	// 0.5 = OFFSET, 0.01 = Temp Coefficient
+	return ((adcVoltage - 0.5) / 0.01);	// Converts temperature voltage to degrees celsius ( 0.5 = OFFSET, 0.01 = Temp Coefficient)
 
 }
 
 void setAlarm(double vOut){
 
-    if (vOut < 0.65 || vOut > 2.65){
-	if (alarmTimer > 180 && (monitoring == true)) {
-//        printf("\nALARM set = %f\n",vOut);
-        alarmOn = true;
-        alarmTimer = 0;
-        Blynk.virtualWrite(V5,alarmOn); 
-        }
-    }
-    
+	if (vOut < 0.65 || vOut > 2.65){		// Executes if output voltage is below 0.65V or above 2.65V
+		if (alarmTimer > 180 && (monitoring == true)) {		// Executes if alarm was set more than 3min ago and program is currently monitoring
+        		alarmOn = true;		// Sets alarm status to true
+        		alarmTimer = 0;		// Resets alarm timer 
+        		Blynk.virtualWrite(V5,alarmOn);		// Sets virtual button state to HIGH
+        	}
+       }
 
 
 }
@@ -409,110 +415,10 @@ void setAlarm(double vOut){
 
 double dacOUT(double light, double humidityV){
 
-    double vOut = ( (light/1023) * humidityV );
-   // decToBinary(vOut);
-   // bufferDAC[0] = 0b01110000 | (vOut >> 4);
-   // bufferDAC[1] = vOut << 4;
-   // wiringPiSPIDataRW(SPI_CHAN, bufferDAC, 2);
-    // setAlarm(vOut);
-     return vOut;
+	double vOut = ( (light/1023) * humidityV );		// Divides light value by 1023 and multiplies answer by humidity voltage
+
+	return vOut;		// returns output voltage
 }
-
-void decToBinary(int n){
-    
-    int binaryNum[10];
-    int i = 0;
-    while (i < 10){      //Fill binarynum array with zeros
-        binaryNum[i] = 0;
-        i ++;
-    }
-    i = 0;
-    while (n > 0) {
-        binaryNum[i] = n%2; //convert n to binary
-        n = n/ 2;
-        i ++;
-    }
-    
-    i = 0;
-    for (int j = 10 - 1; j >= 0; j--){
-        vOutBin[i] = binaryNum[j];                  //populate display array - because one can't return an array in c
-        i ++;
-    } 
-
-  
-}
-
-
-/*
- * hexCompensation
- * This function may not be necessary if you use bit-shifting rather than decimal checking for writing out time values
- */
-int hexCompensation(int units){
-	/*Convert HEX or BCD value to DEC where 0x45 == 0d45 
-	  This was created as the lighXXX functions which determine what GPIO pin to set HIGH/LOW
-	  perform operations which work in base10 and not base16 (incorrect logic) 
-	*/
-	int unitsU = units%0x10;
-
-	if (units >= 0x50){
-		units = 50 + unitsU;
-	}
-	else if (units >= 0x40){
-		units = 40 + unitsU;
-	}
-	else if (units >= 0x30){
-		units = 30 + unitsU;
-	}
-	else if (units >= 0x20){
-		units = 20 + unitsU;
-	}
-	else if (units >= 0x10){
-		units = 10 + unitsU;
-	}
-	return units;
-}
-
-
-/*
- * decCompensation
- * This function "undoes" hexCompensation in order to write the correct base 16 value through I2C
- */
-int decCompensation(int units){
-	int unitsU = units%10;
-
-	if (units >= 50){
-		units = 0x50 + unitsU;
-	}
-	else if (units >= 40){
-		units = 0x40 + unitsU;
-	}
-	else if (units >= 30){
-		units = 0x30 + unitsU;
-	}
-	else if (units >= 20){
-		units = 0x20 + unitsU;
-	}
-	else if (units >= 10){
-		units = 0x10 + unitsU;
-	}
-	return units;
-}
-
-
-/*
- * Change the hour format to 12 hours
- */
-int hFormat(int hours){
-	/*formats to 12h*/
-	if (hours >= 24){
-		hours = 0;
-	}
-	else if (hours > 12){
-		hours -= 12;
-	}
-	return (int)hours;
-}
-
 
 
 
@@ -520,235 +426,205 @@ int hFormat(int hours){
  * Setup Function. Called once 
  */
 int setup_gpio(void){
-    //Set up wiring Pi
-    wiringPiSetupGpio();
 
-    //setting up the led
-    pinMode(ALARM_LED, PWM_OUTPUT);
+	//Set up wiring Pi
+    	wiringPiSetupGpio();
+
+    	//setting up the led
+    	pinMode(ALARM_LED, PWM_OUTPUT);
 
 
-    //setting up the buttons
-    pinMode(CHANGE_FREQ_BTN, INPUT);
-    pullUpDnControl(CHANGE_FREQ_BTN, PUD_UP);
+ 	//setting up the buttons
+    	pinMode(CHANGE_FREQ_BTN, INPUT);
+    	pullUpDnControl(CHANGE_FREQ_BTN, PUD_UP);
 
-    pinMode(RESET_TIME_BTN, INPUT);
-    pullUpDnControl(RESET_TIME_BTN, PUD_UP);
+    	pinMode(RESET_TIME_BTN, INPUT);
+    	pullUpDnControl(RESET_TIME_BTN, PUD_UP);
 
-    pinMode(STOP_START_BTN, INPUT);
-    pullUpDnControl(STOP_START_BTN, PUD_UP);
+    	pinMode(STOP_START_BTN, INPUT);
+    	pullUpDnControl(STOP_START_BTN, PUD_UP);
 
-    pinMode(DISMISS_ALARM_BTN, INPUT);
-    pullUpDnControl(DISMISS_ALARM_BTN, PUD_UP);
+    	pinMode(DISMISS_ALARM_BTN, INPUT);
+    	pullUpDnControl(DISMISS_ALARM_BTN, PUD_UP);
 
-    //Attach interrupts to button
-    wiringPiISR(CHANGE_FREQ_BTN, INT_EDGE_FALLING, frequency_isr);
-    wiringPiISR(RESET_TIME_BTN, INT_EDGE_FALLING, reset_isr);
-    wiringPiISR(STOP_START_BTN, INT_EDGE_FALLING, stop_start_isr);
-    wiringPiISR(DISMISS_ALARM_BTN, INT_EDGE_FALLING, dismiss_alarm_isr);
-   
-    //setting up the SPI interface
-    wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
+    	//Attach interrupts to button
+    	wiringPiISR(CHANGE_FREQ_BTN, INT_EDGE_FALLING, frequency_isr);
+    	wiringPiISR(RESET_TIME_BTN, INT_EDGE_FALLING, reset_isr);
+    	wiringPiISR(STOP_START_BTN, INT_EDGE_FALLING, stop_start_isr);
+    	wiringPiISR(DISMISS_ALARM_BTN, INT_EDGE_FALLING, dismiss_alarm_isr);
 
-//    RTC = wiringPiI2CSetup(RTC_ADDR); //Set up the RTC
+    	//setting up the SPI interface
+    	wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
 
-    return 0;
+
+    	return 0;
 }
 
 
 int analogReadADC(int analogChannel){
 
 
-bufferADC[0] = 1;
-bufferADC[1] = (8 + analogChannel) << 4;
-bufferADC[2] = 0;
+	bufferADC[0] = 1;
+	bufferADC[1] = (8 + analogChannel) << 4;		// Set config bits for ADC
+	bufferADC[2] = 0;
 
-wiringPiSPIDataRW(SPI_CHAN, bufferADC, 3);
+	wiringPiSPIDataRW(SPI_CHAN, bufferADC, 3);		// Write config bits to ADC and return digital values
 
-return (((bufferADC[1] & 3) << 8) + bufferADC[2]);
+	return (((bufferADC[1] & 3) << 8) + bufferADC[2]);		// Return readable values
+
 }
 
-void fetchTime(void){
+void fetchTime(void){		// (Using kernel driver for RTC)
 
-	hoursRTC = getHours();
-      minsRTC = getMins();
-	secsRTC = getSecs();
-
-//	hoursRTC = wiringPiI2CReadReg8(RTC, HOUR) + TIMEZONE;	//Reads HOUR value from RTC
-//	minsRTC = hexCompensation(wiringPiI2CReadReg8(RTC, MIN));	//Reads MIN value from RTC
-//	secsRTC = hexCompensation(wiringPiI2CReadReg8(RTC, SEC)-0b10000000);	//Reads SEC value from RTC
-
+	hoursRTC = getHours();		 // Fetch system hours
+	minsRTC = getMins();		// Fetch system minutes
+	secsRTC = getSecs();		// Fetch system seconds
 
 }
 
 void sysTime(void){
 
-    alarmTimer += freq ;
-    secsSys += freq;
-    if(secsSys > 59){
-        minsSys += 1;
-        secsSys = 0;
-    }
+	alarmTimer += freq ;		// Increases alarm timer by freq interval
+    	secsSys += freq;		// Increases system seconds by freq interval
 
-    if(minsSys > 59){
-       hoursSys += 1;
-       minsSys = 0;
-    }
+	if(secsSys > 59){
+        	minsSys += 1;		// If system seconds goes above 59 seconds increase minute by 1
+        	secsSys = 0;		// Reset seconds to 0
+    	}
+
+    	if(minsSys > 59){
+       		hoursSys += 1;		// If system minutes goes above 59 invrease hours by 1
+       		minsSys = 0;		// Reset minutes to 9
+    	}
+
+}
+
+
+
+
+ void alarmLED(void){		// Function to blink LED
+
+	for(int i=0;i<1024;i++){
+
+        	if(alarmOn){
+        		pwmWrite(ALARM_LED,i);		// If alarm is on gradually increase brightness
+        		delay(1);
+    		}
+		else{
+			pwmWrite(ALARM_LED,0);		// If alarm is off turn LED off
+		}
+    	}
+
+
+	for(int i=1023;i>=0;i--){
+
+        	if(alarmOn){
+        		pwmWrite(ALARM_LED,i);		// If alarm if on gradually decrease brightness
+        		delay(1);
+
+    		} 
+		else{
+        		pwmWrite(ALARM_LED,0);		// If alarm is off turn off LED
+        	}
+   	}
+
+}
+
+
+void *systemTimeThread(void *threadargs){		// Thread to increase system time even when program is stopped
+
+	while(1){
+
+		sysTime();
+        	sleep(freq);
+   	}
+
+	pthread_exit(NULL);
 
 }
 
 
 
-
- void alarmLED(void){
-
-    for(int i=0;i<1024;i++){
-
-        if(alarmOn){
-        pwmWrite(ALARM_LED,i);
-        delay(1);
-    }
-	else{
-	pwmWrite(ALARM_LED,0);
-	}
-    }
-
-//    sleep(1);
-    for(int i=1023;i>=0;i--){
-
-        if(alarmOn){
-        pwmWrite(ALARM_LED,i);
-        delay(1);
-
-    }    
-	else{
-        pwmWrite(ALARM_LED,0);
-        }
-   }
-
-}
+void *monitorThread(void *threadargs){		// Thread to monitor values
 
 
-void *systemTimeThread(void *threadargs){
-
-    while(1){
+	while(1){
 
 
-        sysTime();
-        sleep(freq);
-//       alarmLED();
-    }
+       		humidity = humidityVoltage(analogReadADC(2));		// Set humidity voltage variable
+       		temperature = temperatureCelsius(analogReadADC(0));		// Set temperature variable in degrees celsius
+       		light = analogReadADC(1);		// Set light variable
+       		vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));		// Set output voltage variable
 
+       		alarmLED();		// Blink alarm LED
 
+    	}
+    
     pthread_exit(NULL);
 }
-/* 
- * Thread that handles reading from SPI
- * 
- */
-void *monitorThread(void *threadargs){
 
 
-    while(1){
-
-       fetchTime();
-       humidity = humidityVoltage(analogReadADC(2));
-       temperature = temperatureCelsius(analogReadADC(0));
-       light = analogReadADC(1);
-       vOut = dacOUT(analogReadADC(1), humidityVoltage(analogReadADC(2)));
-
-       alarmLED();
-
-}
-    pthread_exit(NULL);
-}
 
 int main(int argc, char* argv[]){
     // Call the setup GPIO function
 	if(setup_gpio()==-1){
-        printf("Setup error");
-	 return 0;
-    }
+        	printf("Setup error");
+	 	return 0;
+    	}
 
-	signal(SIGINT, cleanUp);
+	signal(SIGINT, cleanUp);		// Set up keyboard interrupt
 
-//    	toggleTime();
+     	parse_options(argc, argv, auth, serv, port);		// Fetches variables
+
+     	Blynk.begin(auth, serv, port);		// Connects to blynk.cloud server
+
+     	setup();		// Set up timers
 
 
-     parse_options(argc, argv, auth, serv, port);
-
-     Blynk.begin(auth, serv, port);
-
-     setup();
-  //      toggleTime();
-
-    /* Initialize thread with parameters
-     */ 
+	/* Initialize thread with parameters
+     	*/ 
+   
+    	pthread_attr_t tattr;
+    	pthread_t thread_id[NUM_THREADS];
+    	int newprio = 99;
+    	sched_param param;
     
-    //Write your logic here
-    pthread_attr_t tattr;
-    pthread_t thread_id[NUM_THREADS];
-    int newprio = 99;
-    sched_param param;
+    	pthread_attr_init (&tattr);
+    	pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
+    	param.sched_priority = newprio; /* set the priority; others are unchanged */
+    	pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
     
-    pthread_attr_init (&tattr);
-    pthread_attr_getschedparam (&tattr, &param); /* safe to get existing scheduling param */
-    param.sched_priority = newprio; /* set the priority; others are unchanged */
-    pthread_attr_setschedparam (&tattr, &param); /* setting the new scheduling param */
-    
-   // pthread_create(&thread_id[0], &tattr, blynkThread, (void *)1); /* with new priority specified */
 
-    pthread_create(&thread_id[0], &tattr, systemTimeThread, (void *)1); /* with new priority specified */
+    	pthread_create(&thread_id[0], &tattr, systemTimeThread, (void *)1); /* with new priority specified */
+															// Creates two threads to run systemTimeThread and monitorThread at the same time as Blynk
+    	pthread_create(&thread_id[1], &tattr, monitorThread, (void *)1); /* with new priority specified */
 
-    pthread_create(&thread_id[1], &tattr, monitorThread, (void *)1); /* with new priority specified */
 
-//   sleep(2);
+	printf("----------------------------------------------------------------------------------------------\n"); 
+   	printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n");		// Prints out table header to pi console
+   	printf("----------------------------------------------------------------------------------------------\n"); 
 
-   printf("----------------------------------------------------------------------------------------------\n"); 
-   printf("|   RTC Time   |   Sys Timer   |   Humidity   |   Temp   |  Light  |   DAC out   |   Alarm   |\n"); 
-   printf("----------------------------------------------------------------------------------------------\n"); 
+    	while(1){
 
-    while(1){
-//timerFreq = freq * 1000;
-	loop();
-} 
-    pthread_exit(NULL);
+		loop();		// Runs Blynk and timers
+	} 
+
+	pthread_exit(NULL);
 
 
 
-    return 0;
+    	return 0;
 }
+
 
 void cleanUp(int signal) {
 
 	printf("\nProgram Ended\n");
  
-	pinMode(ALARM_LED, 0);		//Sets seconds LED to input
+	pinMode(ALARM_LED, 0);		//Sets ALARM  LED to input
+
 	exit(0);	//Exits program
 
 }
 
-//This interrupt will fetch current time from another script and write it to the clock registers
-//This functions will toggle a flag that is checked in main
-void toggleTime(void){
-//	long interruptTime = millis();
 
-//	if (interruptTime - lastInterruptTime>200){
-//		HH = getHours();
-//		MM = getMins();
-//		SS = getSecs();
-
-//		HH = hFormat(HH);
-              //  HH = decCompensation(HH);
-//		wiringPiI2CWriteReg8(RTC, HOUR, HH);
-
-//		MM = decCompensation(MM);
-//		wiringPiI2CWriteReg8(RTC, MIN, MM);
-
-//		SS = decCompensation(SS);
-//		wiringPiI2CWriteReg8(RTC, SEC, 0b10000000+SS);
-//} else {
-//printf("TOGGLE TIME");
-
-//	}
-//	lastInterruptTime = interruptTime;
-}
