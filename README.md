@@ -26,9 +26,3 @@ Practical 4 will introduce SPI and threading, in order to play some sampled audi
 
 #### Files
 - Prac4
-
-## Prac 5
-Practical 5 isn't directly related to the Raspberrry Pi, but introduces low level knowledge of processors by requiring you to design an ALU.
-
-#### Files
-- 
