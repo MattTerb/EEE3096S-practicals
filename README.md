@@ -1,4 +1,4 @@
-# EEE3096S-practicals
+# University of Cape Town (UCT) EEE3096S-practicals
 
 ## Prac 1
 
